@@ -1,8 +1,0 @@
-{
-	"format_version": "1.16.100",
-	"minecraft:texture_set": {
-		"color": "rare_brainrot_egg_hatches",
-		"metalness_emissive_roughness": "rare_brainrot_egg_hatches_mer",
-		"heightmap": "rare_brainrot_egg_hatches_height"
-	}
-}

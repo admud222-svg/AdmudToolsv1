@@ -1,8 +1,0 @@
-{
-	"format_version": "1.16.100",
-	"minecraft:texture_set": {
-		"color": "chimpanzinibananini",
-		"metalness_emissive_roughness": "chimpanzinibananini_mer",
-		"heightmap": "chimpanzinibananini_height"
-	}
-}

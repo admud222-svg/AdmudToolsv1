@@ -1,8 +1,0 @@
-{
-	"format_version": "1.16.100",
-	"minecraft:texture_set": {
-		"color": "ketupatkepat",
-		"metalness_emissive_roughness": "ketupatkepat_mer",
-		"heightmap": "ketupatkepat_height"
-	}
-}
