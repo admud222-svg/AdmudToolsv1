@@ -1,0 +1,8 @@
+{
+	"format_version": "1.16.100",
+	"minecraft:texture_set": {
+		"color": "ballerinacapuchina",
+		"metalness_emissive_roughness": "ballerinacapuchina_mer",
+		"heightmap": "ballerinacapuchina_height"
+	}
+}

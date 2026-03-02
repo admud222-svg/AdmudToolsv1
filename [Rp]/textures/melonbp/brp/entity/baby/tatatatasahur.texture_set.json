@@ -1,0 +1,8 @@
+{
+	"format_version": "1.16.100",
+	"minecraft:texture_set": {
+		"color": "tatatatasahur",
+		"metalness_emissive_roughness": "tatatatasahur_mer",
+		"heightmap": "tatatatasahur_height"
+	}
+}

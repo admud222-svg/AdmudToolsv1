@@ -1,0 +1,8 @@
+{
+	"format_version": "1.16.100",
+	"minecraft:texture_set": {
+		"color": "pakrahmatmamat",
+		"metalness_emissive_roughness": "pakrahmatmamat_mer",
+		"heightmap": "pakrahmatmamat_height"
+	}
+}

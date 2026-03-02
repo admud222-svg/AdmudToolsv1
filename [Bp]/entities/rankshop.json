@@ -1,0 +1,23 @@
+{
+	"format_version": "1.16.0",
+	"minecraft:entity": {
+		"description": {
+			"identifier": "admud:rankshop",
+			"is_spawnable": true,
+			"is_summonable": true,
+			"is_experimental": false
+		},
+		"components": {
+			"minecraft:damage_sensor": { "triggers": { "cause": "all", "deals_damage": false } },
+			"minecraft:interact": { "interactions": { "on_interact": { "play_sounds": "note.bell" } } },
+			"minecraft:type_family": { "family": ["npc", "inanimate"] },
+			"minecraft:health": { "value": 32767, "max": 32767 },
+			"minecraft:movement": { "value": 0 },
+			"minecraft:physics": { "has_collision": true, "has_gravity": false },
+			"minecraft:pushable": { "is_pushable": false, "is_pushable_by_piston": false },
+			"minecraft:knockback_resistance": { "value": 1 },
+			"minecraft:collision_box": { "width": 1, "height": 3.0 },
+			"minecraft:nameable": { "alwaysShow": true, "allowNameTagRenaming": false }
+		}
+	}
+}

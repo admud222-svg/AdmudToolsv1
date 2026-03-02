@@ -1,0 +1,8 @@
+{
+	"format_version": "1.16.100",
+	"minecraft:texture_set": {
+		"color": "legendary_brainrot_egg_entity",
+		"metalness_emissive_roughness": "legendary_brainrot_egg_entity_mer",
+		"heightmap": "legendary_brainrot_egg_entity_height"
+	}
+}

@@ -1,0 +1,183 @@
+{
+  "format_version": "1.21.100",
+  "minecraft:entity": {
+    "description": {
+      "identifier": "melonbp_brp:baby_pothotspot",
+      "is_spawnable": true,
+      "is_summonable": true
+    },
+    "component_groups": {
+      "high_ambient_sounds": {
+        "minecraft:ambient_sound_interval": {
+          "event_name": "ambient",
+          "range": 32,
+          "value": 14
+        }
+      },
+      "low_ambient_sounds": {
+        "minecraft:ambient_sound_interval": {
+          "event_name": "ambient",
+          "range": 120,
+          "value": 60
+        }
+      },
+      "no_ambient_sounds": {
+        "minecraft:ambient_sound_interval": {
+          "event_name": "ambient",
+          "range": 7202,
+          "value": 7200
+        }
+      },
+      "grow_up": {
+        "minecraft:transformation": {
+          "into": "melonbp_brp:pothotspot<minecraft:entity_spawned>",
+          "drop_inventory": false,
+          "keep_owner": true,
+          "preserve_equipment": true
+        }
+      },
+      "rideable": {
+        "minecraft:rideable": {
+          "seat_count": 1,
+          "passenger_max_width": 1.375,
+          "family_types": ["player"],
+          "pull_in_entities": false,
+          "seats": [
+            {
+              "position": [0, 1, -0.2]
+            }
+          ]
+        },
+        "minecraft:input_ground_controlled": {}
+      }
+    },
+    "components": {
+      "minecraft:is_baby": {},
+      "minecraft:type_family": {
+        "family": ["mob", "melonbp_brp.pet"]
+      },
+      "minecraft:tameable": {},
+      "minecraft:is_hidden_when_invisible": {},
+      "minecraft:interact": {
+        "interactions": [
+          {
+            "swing": true,
+            "vibration": "entity_act"
+          }
+        ]
+      },
+      "minecraft:damage_sensor": {
+        "triggers": [
+          {
+            "cause": "fall",
+            "deals_damage": "no"
+          }
+        ]
+      },
+      "minecraft:behavior.panic": {
+        "priority": 1,
+        "speed_multiplier": 1.25
+      },
+      "minecraft:breathable": {
+        "total_supply": 15,
+        "suffocate_time": 0
+      },
+      "minecraft:nameable": {},
+      "minecraft:health": {
+        "value": 20,
+        "max": 20
+      },
+      "minecraft:hurt_on_condition": {
+        "damage_conditions": [
+          {
+            "filters": { "test": "in_lava", "subject": "self", "operator": "==", "value": true },
+            "cause": "lava",
+            "damage_per_tick": 4
+          }
+        ]
+      },
+      "minecraft:collision_box": {
+        "width": 0.7,
+        "height": 1.4
+      },
+      "minecraft:movement": {
+        "value": 0.3
+      },
+      "minecraft:behavior.follow_owner": {
+        "start_distance": 16,
+        "stop_distance": 5
+      },
+      "minecraft:navigation.walk": {
+        "avoid_water": false,
+        "can_jump": true,
+        "can_path_over_water": true
+      },
+      "minecraft:movement.skip": {},
+      "minecraft:jump.static": {},
+      "minecraft:can_climb": {},
+      "minecraft:despawn": {
+        "despawn_from_distance": {}
+      },
+      "minecraft:behavior.float": {
+        "priority": 0
+      },
+      "minecraft:behavior.random_stroll": {
+        "priority": 7,
+        "interval": 120,
+        "xz_dist": 10,
+        "y_dist": 7
+      },
+      "minecraft:behavior.look_at_player": {
+        "priority": 11
+      },
+      "minecraft:physics": {},
+      "minecraft:pushable": {
+        "is_pushable": true,
+        "is_pushable_by_piston": true
+      },
+      "minecraft:block_climber": {},
+      "minecraft:conditional_bandwidth_optimization": {}
+    },
+    "events": {
+      "minecraft:entity_spawned": {
+        "add": {
+          "component_groups": ["rideable"]
+        }
+      },
+      "melonbp_brp:request_grow_up": {
+        "queue_command": {
+          "command": "scriptevent melonbp_brp:grow_up"
+        }
+      },
+      "melonbp_brp:grow_up": {
+        "add": {
+          "component_groups": ["grow_up"]
+        }
+      },
+      "melonbp:set_high_ambient_sounds": {
+        "remove": {
+          "component_groups": ["low_ambient_sounds", "no_ambient_sounds"]
+        },
+        "add": {
+          "component_groups": ["high_ambient_sounds"]
+        }
+      },
+      "melonbp:set_low_ambient_sounds": {
+        "remove": {
+          "component_groups": ["high_ambient_sounds", "no_ambient_sounds"]
+        },
+        "add": {
+          "component_groups": ["low_ambient_sounds"]
+        }
+      },
+      "melonbp:set_no_ambient_sounds": {
+        "remove": {
+          "component_groups": ["high_ambient_sounds", "low_ambient_sounds"]
+        },
+        "add": {
+          "component_groups": ["no_ambient_sounds"]
+        }
+      }
+    }
+  }
+}
