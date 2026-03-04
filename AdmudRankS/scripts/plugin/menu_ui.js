@@ -25,13 +25,13 @@ export function openMemberMainMenu(player) {
         .body(`§l§b${player.name}§r\n§7Rank: ${rank.prefix}\n§7Money: §a$${money}`);
 
     const actions = [];
-    if (toggles.clan) { form.button("Clan System", "textures/ui/icon_multiplayer"); actions.push("clan"); }
-    if (toggles.tpa) { form.button("TPA Teleport", "textures/ui/send_icon"); actions.push("tpa"); }
-    if (toggles.rtp) { form.button("RTP (Random TP)", "textures/ui/icon_map"); actions.push("rtp"); }
-    if (toggles.claimland) { form.button("Claim Land", "textures/ui/lock"); actions.push("claimland"); }
-    if (toggles.serverwarp) { form.button("Server Warps", "textures/ui/world_glyph"); actions.push("serverwarp"); }
-    if (toggles.playerwarp) { form.button("Player Warps", "textures/ui/icon_sign"); actions.push("playerwarp"); }
-
+    if (toggles.serverwarp) { form.button("Server Warps", "textures/ui/mashup_world"); actions.push("serverwarp"); }
+    if (toggles.rtp) { form.button("RTP (Random TP)", "textures/ui/sidebar_icons/realms"); actions.push("rtp"); }
+    if (toggles.tpa) { form.button("TPA Teleport", "textures/ui/dressing_room_customization"); actions.push("tpa"); }
+     if (toggles.tpa) { form.button("Shop", "textures/ui/sidebar_icons/marketplace"); actions.push("shop"); }
+    if (toggles.clan) { form.button("Clan System", "textures/ui/icon_recipe_equipment"); actions.push("clan"); }
+    if (toggles.claimland) { form.button("Claim Land", "textures/ui/icon_new"); actions.push("claimland"); }
+    if (toggles.playerwarp) { form.button("Player Warps", "textures/ui/realms_key_art"); actions.push("playerwarp"); }
     form.show(player).then(res => {
         if (res.canceled) return;
         const selectedAction = actions[res.selection];
@@ -43,6 +43,7 @@ export function openMemberMainMenu(player) {
             case "claimland": openClaimMenu(player); break;
             case "serverwarp": openWarpMenu(player); break;
             case "playerwarp": openPlayerWarpMenu(player); break;
+            case "shop": openShopMenu(player); break;
         }
     });
 }

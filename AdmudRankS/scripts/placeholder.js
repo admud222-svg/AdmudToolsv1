@@ -34,11 +34,31 @@ function getScore(player, objectiveId) {
 // =========================================
 // METRIC NUMBER FORMATTER (1K, 1M, 1B)
 // =========================================
+// Formatter standard untuk Uang/Kills dll (Ribuan langsung jadi 1K)
 function formatMetric(num) {
     if (num >= 1000000000) return (num / 1000000000).toFixed(1).replace(/\.0$/, '') + "B";
     if (num >= 1000000) return (num / 1000000).toFixed(1).replace(/\.0$/, '') + "M";
     if (num >= 1000) return (num / 1000).toFixed(1).replace(/\.0$/, '') + "K";
     return num.toString();
+}
+
+// =========================================
+// METRIC KHUSUS CLAIM LIMIT (>= 10,000 BARU JADI 10K)
+// =========================================
+function formatClaimMetric(num) {
+    // Jika bentuknya lambang unlimited, biarkan saja
+    if (num === "∞") return num; 
+    
+    let val = Number(num);
+    if (isNaN(val)) return num; // Jika error baca number, kembalikan normal
+    
+    if (val >= 1000000000) return (val / 1000000000).toFixed(1).replace(/\.0$/, '') + "B";
+    if (val >= 1000000) return (val / 1000000).toFixed(1).replace(/\.0$/, '') + "M";
+    // SYARAT: Jika angkanya 10.000 ke atas, baru dikasih "K"
+    if (val >= 10000) return (val / 1000).toFixed(1).replace(/\.0$/, '') + "K";
+    
+    // Kalau di bawah 10.000 (contoh: 2000, 5000) tetap angka utuh
+    return val.toString(); 
 }
 
 // =========================================
@@ -137,9 +157,9 @@ export function resolvePlaceholders(textObj, player, isChatMsg = "") {
         .replace(/@KILL/g, formatMetric(getScore(player, "kills")))
         .replace(/@DEATH/g, formatMetric(getScore(player, "deaths")))
         
-        // CLAIM PLACEHOLDERS BARU
-        .replace(/@CLAIM/g, claimedBlocks)
-        .replace(/@LIMIT/g, limitDisplay)
+        // CLAIM PLACEHOLDERS BARU MENGGUNAKAN METRIC KHUSUS!
+        .replace(/@CLAIM/g, formatClaimMetric(claimedBlocks))
+        .replace(/@LIMIT/g, formatClaimMetric(limitDisplay))
         
         .replace(/@TPS/g, realTPS) 
         .replace(/@PING/g, currentFakePing)

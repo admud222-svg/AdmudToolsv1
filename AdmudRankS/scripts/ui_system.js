@@ -5,6 +5,9 @@ import { getConfig, saveConfig, DEFAULT_CONFIG } from "./config.js";
 import { world, system } from "@minecraft/server";
 import { getClans, saveClans } from "./plugin/clans/clan_db.js";
 
+// IMPORT DATABASE LAND (Pastikan claimland.js mengeksport ini)
+import { fetchAllLandData, saveAllLandData } from "./plugin/land/claimland.js";
+
 const ANIM_TYPES = ["none", "rgb", "wave", "shiny", "typing", "fadein"];
 const PLACEHOLDER_INFO = "§eContekan Placeholder:\n§f@NAMA, @RANKS, @CLAN\n@MONEY, @COIN, @SHARDS\n@KILL, @DEATH, @HEALTH\n@TPS, @PING, @ONLINE, @MAXON\n@TANGGAL, @BULAN, @TAHUN\n@NL (Enter), @BLANK (Spasi)";
 
@@ -27,23 +30,23 @@ export function openAdminMenu(player) {
         .button("Manage Ranks", "textures/ui/icon_setting")
         .button("Manage Kits\n§8(Isi Kit & Cooldown)", "textures/items/bundle_filled") 
         .button("Global Set\n§8(Scoreboard, Chat, Nametag)", "textures/ui/world_glyph")
-        .button("Player Ranks\n§8(Beri / Reset Rank)", "textures/ui/permissions_op_crown") // MENU DI-UPGRADE
+        .button("Player Ranks\n§8(Beri / Reset Rank)", "textures/ui/permissions_op_crown") 
         .button("Manage NPCs", "textures/ui/dressing_room_skins")
-        .button("Member Set\n§8(Clan, Toggles, dll)", "textures/ui/icon_multiplayer");
+        .button("Member Set\n§8(Clan, Land, Toggles)", "textures/ui/icon_multiplayer");
 
     forceShow(player, form, res => {
         if (res.canceled) return;
         if (res.selection === 0) menuManageRanks(player);
         if (res.selection === 1) menuManageKits(player); 
         if (res.selection === 2) menuGlobalSetMaster(player);
-        if (res.selection === 3) menuPlayerRankManager(player); // ARAHKAN KE MANAGER BARU
+        if (res.selection === 3) menuPlayerRankManager(player); 
         if (res.selection === 4) menuManageNPCs(player);
         if (res.selection === 5) menuMemberSet(player);
     });
 }
 
 // ==========================================
-// ADMIN: PLAYER RANKS MANAGER (BERI & RESET)
+// ADMIN: PLAYER RANKS MANAGER
 // ==========================================
 function menuPlayerRankManager(player) {
     const form = new ActionFormData()
@@ -76,10 +79,8 @@ function menuSetPlayerRank(player) {
         const target = players[res.formValues[0]];
         const rank = ranks[res.formValues[1]];
         
-        // 1. Set Rank Aktif
         setPlayerRank(target, rank);
         
-        // 2. Tambahkan permanen ke Lemari Rank (ownedRanks)
         const currentOwned = target.getDynamicProperty("ownedRanks");
         let ownedArr = currentOwned ? JSON.parse(currentOwned) : ["member"];
         if (!ownedArr.includes(rank)) {
@@ -106,18 +107,16 @@ function menuResetPlayerRank(player) {
         if (res.canceled) return menuPlayerRankManager(player);
         const target = players[res.formValues[0]];
         
-        // RESET TOTAL LEMARI & RANK AKTIF
         target.setDynamicProperty("ownedRanks", JSON.stringify(["member"]));
         target.setDynamicProperty("rankID", "member");
         
-        player.sendMessage(`§a[Admin] Berhasil mereset rank milik §b${target.name}§a. Lemari rank-nya telah kosong dan kembali menjadi Member.`);
-        target.sendMessage(`§c[Server] Peringatan! Seluruh rank VIP/MVP kamu telah di-reset oleh Admin. Kamu kembali menjadi Member.`);
+        player.sendMessage(`§a[Admin] Berhasil mereset rank milik §b${target.name}§a.`);
         menuPlayerRankManager(player);
     });
 }
 
 // ==========================================
-// ADMIN: KIT MANAGER 
+// ADMIN: KIT MANAGER (IMPORT INVENTORY)
 // ==========================================
 function menuManageKits(player) {
     const kits = getKits();
@@ -132,7 +131,7 @@ function menuManageKits(player) {
     forceShow(player, form, res => {
         if (res.canceled) return openAdminMenu(player);
         if (res.selection === list.length) {
-            menuEditKit(player, "", true);
+            menuEditKitInfo(player, "", true);
         } else {
             menuEditKitOptions(player, list[res.selection]);
         }
@@ -143,15 +142,17 @@ function menuEditKitOptions(player, kitID) {
     const form = new ActionFormData()
         .title(`Edit Kit: ${kitID}`)
         .button("§lEdit Info & Command", "textures/ui/pencil_edit_icon")
+        .button("§dManage Items\n§8(Tambah dari Inventory)", "textures/ui/inventory_icon")
         .button("§bReset CD Player\n§8(Bantu Player Gagal Klaim)", "textures/ui/refresh_light")
         .button("§cHapus Kit", "textures/ui/trash_default")
         .button("Kembali");
         
     forceShow(player, form, res => {
-        if(res.canceled || res.selection === 3) return menuManageKits(player);
-        if(res.selection === 0) menuEditKit(player, kitID, false);
-        if(res.selection === 1) menuResetKitCooldown(player, kitID); 
-        if(res.selection === 2) {
+        if(res.canceled || res.selection === 4) return menuManageKits(player);
+        if(res.selection === 0) menuEditKitInfo(player, kitID, false);
+        if(res.selection === 1) menuManageKitItems(player, kitID); 
+        if(res.selection === 2) menuResetKitCooldown(player, kitID); 
+        if(res.selection === 3) {
             const kits = getKits();
             delete kits[kitID];
             saveKits(kits);
@@ -161,81 +162,150 @@ function menuEditKitOptions(player, kitID) {
     });
 }
 
-function menuResetKitCooldown(player, kitID) {
-    const players = [...world.getPlayers()];
-    if (players.length === 0) {
-        player.sendMessage("§cTidak ada player yang sedang online.");
-        return menuEditKitOptions(player, kitID);
+function menuManageKitItems(player, kitID) {
+    const kits = getKits();
+    const kit = kits[kitID];
+    const items = kit.items || [];
+
+    const form = new ActionFormData()
+        .title(`Isi Kit: ${kit.name}`)
+        .body(`Total Items di dalam Kit: ${items.length}\nKlik item untuk MENGHAPUSNYA dari Kit.`);
+
+    form.button("§2[+] Tambah Item dari Tas", "textures/ui/color_plus");
+
+    items.forEach((itm) => {
+        let name = typeof itm === "string" ? itm : (itm.name || itm.typeId.replace("minecraft:", ""));
+        let amt = typeof itm === "string" ? "" : ` x${itm.amount}`;
+        form.button(`§cHapus: §f${name}${amt}`);
+    });
+    form.button("Kembali", "textures/ui/cancel");
+
+    forceShow(player, form, res => {
+        if (res.canceled) return;
+        if (res.selection === 0) return menuSelectInventoryItem(player, kitID);
+        if (res.selection === items.length + 1) return menuEditKitOptions(player, kitID);
+
+        const targetIdx = res.selection - 1;
+        kit.items.splice(targetIdx, 1);
+        saveKits(kits);
+        player.sendMessage("§aItem berhasil dihapus dari Kit!");
+        menuManageKitItems(player, kitID);
+    });
+}
+
+function serializeInvItem(item) {
+    const data = { typeId: item.typeId, amount: item.amount };
+    if (item.nameTag) data.name = item.nameTag;
+    const lore = item.getLore();
+    if (lore && lore.length) data.lore = lore;
+    const encComp = item.getComponent("enchantable");
+    if (encComp) {
+        const encs = encComp.getEnchantments();
+        if (encs && encs.length) data.enchantments = encs.map(e => ({ id: e.type.id, level: e.level }));
+    }
+    return data;
+}
+
+function menuSelectInventoryItem(player, kitID) {
+    const inv = player.getComponent("inventory").container;
+    const form = new ActionFormData()
+        .title("Pilih Item dari Tas")
+        .body("§cPENTING: §fItem Shulker Box tidak bisa dimasukkan lewat sini karena batasan sistem Bedrock.\nPilih item biasa (Pedang, Armor, dll):");
+
+    let slotMap = [];
+    for (let i = 0; i < inv.size; i++) {
+        const item = inv.getItem(i);
+        if (item && item.typeId !== "minecraft:air") {
+            if (item.typeId.includes("shulker")) continue; 
+            let name = item.nameTag || item.typeId.replace("minecraft:", "");
+            form.button(`Slot ${i + 1}: ${name} x${item.amount}`);
+            slotMap.push(i);
+        }
     }
 
-    const pNames = players.map(p => p.name);
+    if (slotMap.length === 0) form.body("Tasmu kosong, atau semua isinya adalah Shulker Box yang dilarang.");
+    form.button("§cBatal", "textures/ui/cancel");
 
+    forceShow(player, form, res => {
+        if (res.canceled || res.selection === slotMap.length) return menuManageKitItems(player, kitID);
+        
+        const slot = slotMap[res.selection];
+        const item = inv.getItem(slot);
+        if (!item) return menuManageKitItems(player, kitID);
+
+        const data = serializeInvItem(item);
+        const kits = getKits();
+        if (!kits[kitID].items) kits[kitID].items = [];
+        kits[kitID].items.push(data); 
+        saveKits(kits);
+
+        player.sendMessage(`§aBerhasil memasukkan §e${data.name || data.typeId} §ake dalam Kit!`);
+        menuManageKitItems(player, kitID);
+    });
+}
+
+function menuResetKitCooldown(player, kitID) {
+    const players = [...world.getPlayers()];
+    if (players.length === 0) return menuEditKitOptions(player, kitID);
+    
+    const pNames = players.map(p => p.name);
     const form = new ModalFormData()
         .title(`Reset CD: ${kitID}`)
-        .dropdown("Pilih player yang ingin direset cooldown-nya:", pNames);
+        .dropdown("Pilih player:", pNames);
 
     forceShow(player, form, res => {
         if (res.canceled) return menuEditKitOptions(player, kitID);
-        
         const target = players[res.formValues[0]];
         if (target) {
             resetKitCooldown(target, kitID);
-            player.sendMessage(`§a[Admin] Berhasil mereset cooldown kit §e${kitID}§a untuk §b${target.name}§a!`);
-            target.sendMessage(`§a[Server] Cooldown kit §e${kitID}§a kamu telah di-reset oleh Admin. Silakan klaim kembali!`);
+            player.sendMessage(`§a[Admin] CD kit §e${kitID}§a milik §b${target.name}§a di-reset!`);
         }
         menuEditKitOptions(player, kitID);
     });
 }
 
-function menuEditKit(player, kitID, isNew) {
+function menuEditKitInfo(player, kitID, isNew) {
     const kits = getKits();
     const ranks = getRanks();
     const rankList = Object.keys(ranks); 
 
-    const data = isNew ? { name: "New Kit", reqRank: rankList[0], cooldownHours: 24, items: ["diamond_sword:1", "apple:10"], structure: "", commands: [] } : kits[kitID];
-    
-    const itemStr = (data.items || []).join(", ");
+    const data = isNew ? { name: "New Kit", reqRank: rankList[0], cooldownHours: 24, structure: "", commands: [] } : kits[kitID];
     const cmdStr = (data.commands || []).join(" | ");
-    const structStr = data.structure || "";
-
     const currentRankIdx = Math.max(0, rankList.indexOf(data.reqRank || "member"));
 
     const form = new ModalFormData()
-        .title(isNew ? "Buat Kit Baru" : `Edit Kit: ${kitID}`)
+        .title(isNew ? "Buat Info Kit Baru" : `Edit Info Kit: ${kitID}`)
         .textField("Kit ID (Huruf kecil, tanpa spasi)", "contoh: vip_kit", { defaultValue: isNew ? "" : String(kitID) })
         .textField("Nama Kit (Tampil di UI)", "contoh: VIP Kit", { defaultValue: String(data.name) })
         .dropdown("Pilih Rank Khusus Kit Ini", rankList, { defaultValue: currentRankIdx }) 
         .textField("Waktu Cooldown (Dalam Jam)", "24", { defaultValue: String(data.cooldownHours) })
-        .textField("Items Langsung Ke Inventory\n§eFormat: ID:Jumlah, pisahkan koma.", "contoh: diamond_sword:1, apple:64", { defaultValue: String(itemStr) })
-        .textField("Nama Structure (Shulker Box)\n§eHanya ketik namanya. Otomatis dimuat di kaki player.", "contoh: shulker_vip", { defaultValue: String(structStr) })
+        .textField("Nama Structure (Opsional)", "nama_struktur", { defaultValue: String(data.structure || "") })
         .textField("Command Tambahan\n§eGunakan garis | untuk misah command.", "say halo | xp 100L @s", { defaultValue: String(cmdStr) });
 
     forceShow(player, form, res => {
         if (res.canceled) return menuManageKits(player);
-        let [newID, newName, rankIndex, cd, itemsInput, structInput, commandsInput] = res.formValues;
+        let [newID, newName, rankIndex, cd, structureInput, commandsInput] = res.formValues;
         
         newID = newID.toLowerCase().replace(/ /g, "");
         if(!newID || !newName) return player.sendMessage("§cID dan Nama Kit tidak boleh kosong!");
 
         const selectedReqRank = rankList[rankIndex];
-        const itemArray = itemsInput.split(",").map(s => s.trim()).filter(s => s !== "");
         const cmdArray = commandsInput.split("|").map(s => s.trim()).filter(s => s !== "");
+        const oldItems = isNew ? [] : (kits[kitID].items || []);
 
-        if(!isNew && newID !== kitID) {
-            delete kits[kitID];
-        }
+        if(!isNew && newID !== kitID) delete kits[kitID];
 
         kits[newID] = {
             name: newName,
             reqRank: selectedReqRank, 
             cooldownHours: parseFloat(cd) || 0,
-            items: itemArray,
-            structure: structInput.trim(),
+            items: oldItems,
+            structure: structureInput.trim(), 
             commands: cmdArray
         };
 
         saveKits(kits);
-        player.sendMessage(`§aKit ${newName} berhasil disimpan (Khusus Rank: ${selectedReqRank})!`);
+        player.sendMessage(`§aInfo Kit ${newName} berhasil disimpan!`);
         menuManageKits(player);
     });
 }
@@ -273,35 +343,22 @@ function menuManageRanks(player) {
 }
 
 function menuDeleteRank(player, rankID) {
-    if (rankID.toLowerCase() === "member") {
-        player.sendMessage("§c[Admin] Gagal! Rank 'member' adalah rank dasar server dan tidak boleh dihapus.");
-        player.playSound("note.bass", { volume: 1.0, pitch: 1.0 });
-        return menuManageRanks(player);
-    }
+    if (rankID.toLowerCase() === "member") return menuManageRanks(player);
 
     const form = new MessageFormData()
         .title("Hapus Rank?")
-        .body(`Apakah kamu yakin ingin MENGHAPUS PERMANEN rank §e${rankID}§r?\n\nSemua pemain yang sedang memakai rank ini akan otomatis dikembalikan menjadi Member.`)
+        .body(`Apakah kamu yakin ingin MENGHAPUS PERMANEN rank §e${rankID}§r?`)
         .button1("§l§cHAPUS RANK")
         .button2("BATAL");
 
     forceShow(player, form, res => {
         if (res.selection === 1 || res.canceled) return menuManageRanks(player);
-        
         const ranks = getRanks();
         if (ranks[rankID]) {
             delete ranks[rankID];
             saveRanks(ranks);
-            
-            for (const p of world.getPlayers()) {
-                if (p.getDynamicProperty("rankID") === rankID) {
-                    p.setDynamicProperty("rankID", "member");
-                    p.sendMessage(`§c[Server] Rank yang kamu gunakan telah dihapus oleh Admin. Kamu kembali menjadi Member.`);
-                }
-            }
         }
-        
-        player.sendMessage(`§a[Admin] Rank ${rankID} berhasil dihapus dari database!`);
+        player.sendMessage(`§a[Admin] Rank ${rankID} dihapus!`);
         menuManageRanks(player);
     });
 }
@@ -320,17 +377,15 @@ function menuEditRank(player, rankID, isNew) {
     forceShow(player, form, res => {
         if (res.canceled) return menuManageRanks(player);
         let newID = isNew ? res.formValues[0].toLowerCase() : rankID;
-        let prefixVal = res.formValues[1];
-        let prioVal = parseInt(res.formValues[2]) || 0;
-        let priceVal = parseInt(res.formValues[3]) || 0;
-
-        const oldCmds = isNew ? {} : data.commands;
-        ranks[newID] = { prefix: prefixVal, priority: prioVal, price: priceVal, commands: oldCmds };
+        ranks[newID] = { prefix: res.formValues[1], priority: parseInt(res.formValues[2]) || 0, price: parseInt(res.formValues[3]) || 0, commands: data.commands };
         saveRanks(ranks);
         player.sendMessage(`§aRank ${newID} berhasil disimpan!`);
     });
 }
 
+// ==========================================
+// ADMIN: GLOBAL SETTING (Scoreboard dll)
+// ==========================================
 function menuGlobalSetMaster(player) {
     const form = new ActionFormData()
         .title("§l§eGLOBAL SETTINGS§t§t§1")
@@ -381,11 +436,9 @@ function menuScoreboardList(player) {
 
         forceShow(player, subForm, act => {
             if (act.canceled) return menuScoreboardList(player);
-            
             if (act.selection === 0) {
                 menuAddOrEditLine(player, lineIndex);
-            } 
-            else if (act.selection === 1) {
+            } else if (act.selection === 1) {
                 if (lineIndex > 0) {
                     let temp = config.sbLines[lineIndex - 1];
                     config.sbLines[lineIndex - 1] = config.sbLines[lineIndex];
@@ -393,8 +446,7 @@ function menuScoreboardList(player) {
                     saveConfig(config);
                 }
                 menuScoreboardList(player);
-            } 
-            else if (act.selection === 2) {
+            } else if (act.selection === 2) {
                 if (lineIndex < config.sbLines.length - 1) {
                     let temp = config.sbLines[lineIndex + 1];
                     config.sbLines[lineIndex + 1] = config.sbLines[lineIndex];
@@ -402,8 +454,7 @@ function menuScoreboardList(player) {
                     saveConfig(config);
                 }
                 menuScoreboardList(player);
-            } 
-            else if (act.selection === 3) {
+            } else if (act.selection === 3) {
                 config.sbLines.splice(lineIndex, 1);
                 saveConfig(config);
                 player.sendMessage("§cLine berhasil dihapus!");
@@ -422,11 +473,8 @@ function menuAddOrEditLine(player, index) {
     const lineOptions = [];
     const maxLines = isNew ? config.sbLines.length + 1 : config.sbLines.length;
     for (let i = 0; i < maxLines; i++) {
-        if (isNew && i === maxLines - 1) {
-            lineOptions.push(`Baris ke-${i + 1} (Paling Bawah)`);
-        } else {
-            lineOptions.push(`Baris ke-${i + 1}`);
-        }
+        if (isNew && i === maxLines - 1) lineOptions.push(`Baris ke-${i + 1} (Paling Bawah)`);
+        else lineOptions.push(`Baris ke-${i + 1}`);
     }
     
     const defaultLinePos = isNew ? config.sbLines.length : index;
@@ -439,19 +487,17 @@ function menuAddOrEditLine(player, index) {
 
     forceShow(player, form, res => {
         if (res.canceled) return menuScoreboardList(player);
-        
         const targetIndex = res.formValues[0];
         const newData = { anim: ANIM_TYPES[res.formValues[1]], text: res.formValues[2] };
         
-        if (isNew) {
-            config.sbLines.splice(targetIndex, 0, newData);
-        } else {
+        if (isNew) config.sbLines.splice(targetIndex, 0, newData);
+        else {
             config.sbLines.splice(index, 1);
             config.sbLines.splice(targetIndex, 0, newData);
         }
         
         saveConfig(config);
-        player.sendMessage(`§aScoreboard berhasil diupdate di Baris ke-${targetIndex + 1}!`);
+        player.sendMessage(`§aScoreboard diupdate di Baris ke-${targetIndex + 1}!`);
         menuScoreboardList(player);
     });
 }
@@ -493,9 +539,9 @@ function menuManageNPCs(player) {
                 const p = world.getPlayers({ name: pName })[0];
                 if (!p) return;
                 try {
-                    p.runCommandAsync("kill @e[type=admud:rankshop,r=5]");
-                    p.runCommandAsync("kill @e[type=admud:rankkit,r=5]");
-                    p.runCommandAsync("kill @e[tag=npc_skin,r=5]");
+                    try { p.runCommand("kill @e[type=admud:rankshop,r=5]"); } catch(e){}
+                    try { p.runCommand("kill @e[type=admud:rankkit,r=5]"); } catch(e){}
+                    try { p.runCommand("kill @e[tag=npc_skin,r=5]"); } catch(e){}
                     p.sendMessage("§aFitur NPC dan Skin di sekitarmu berhasil dihapus.");
                 } catch(e) {}
             });
@@ -546,7 +592,7 @@ function menuSelectNPCSkin(player, logicEntityID, npcName) {
                     logicEntity = p.dimension.spawnEntity(logicEntityID, loc);
                     logicEntity.nameTag = npcName;
                 } catch(e) {
-                    p.runCommandAsync(`summon ${logicEntityID} ~ ~ ~ "${npcName}"`);
+                    try { p.runCommand(`summon ${logicEntityID} ~ ~ ~ "${npcName}"`); } catch(e){}
                 }
 
                 if (res.selection < skinList.length) {
@@ -555,15 +601,17 @@ function menuSelectNPCSkin(player, logicEntityID, npcName) {
                         const skinEntity = p.dimension.spawnEntity(selectedSkin, loc);
                         skinEntity.addTag("npc_skin");
                     } catch(e) {
-                        p.runCommandAsync(`summon ${selectedSkin} ~ ~ ~`);
-                        p.runCommandAsync(`tag @e[type=${selectedSkin},r=3,c=1] add npc_skin`);
+                        try {
+                            p.runCommand(`summon ${selectedSkin} ~ ~ ~`);
+                            p.runCommand(`tag @e[type=${selectedSkin},r=3,c=1] add npc_skin`);
+                        } catch(e){}
                     }
                     p.sendMessage(`§aSukses memasang dengan skin ${skinList[res.selection].name}!`);
                 } else {
                     p.sendMessage(`§aSukses memasang tanpa skin.`);
                 }
                 
-                p.runCommandAsync("playsound random.levelup @s");
+                try { p.runCommand("playsound random.levelup @s"); } catch(e){}
 
             } catch (e) {
                 p.sendMessage(`§c[MineKings] Gagal memanggil NPC: ${e}`);
@@ -573,7 +621,7 @@ function menuSelectNPCSkin(player, logicEntityID, npcName) {
 }
 
 // ==========================================
-// ADMIN: MEMBER & SYSTEM SETTING
+// ADMIN: MEMBER, CLAN, RTP & LAND
 // ==========================================
 function menuMemberSet(player) {
     const form = new ActionFormData()
@@ -581,14 +629,16 @@ function menuMemberSet(player) {
         .body("Pilih kategori pengaturan:")
         .button("§lClan Setting\n§r§8Atur Harga & Hapus Clan", "textures/ui/icon_multiplayer")
         .button("§lRTP Setting\n§r§8Atur Limit & Radius RTP", "textures/ui/icon_map")
+        .button("§lLand Setting\n§r§8Manage Land & Limit Claim", "textures/ui/village_hero_effect")
         .button("§lToggles Menu\n§r§8Aktif/Matikan Fitur Server", "textures/ui/settings_glyph_color_2x")
         .button("§cKembali", "textures/ui/cancel");
 
     forceShow(player, form, res => {
-        if (res.canceled || res.selection === 3) return openAdminMenu(player);
+        if (res.canceled || res.selection === 4) return openAdminMenu(player);
         if (res.selection === 0) menuAdminClanCategory(player);
         if (res.selection === 1) menuAdminRtpCategory(player);
-        if (res.selection === 2) menuToggleMenu(player);
+        if (res.selection === 2) menuAdminLandCategory(player);
+        if (res.selection === 3) menuToggleMenu(player);
     });
 }
 
@@ -609,11 +659,7 @@ function menuAdminClanCategory(player) {
 
 function menuAdminRtpCategory(player) {
     const config = getConfig();
-    
-    // Default values jika belum ada di config
-    let rtpLimit = 5;
-    let rtpCooldown = 120; // dalam menit (2 jam)
-    let rtpRadius = 10000;
+    let rtpLimit = 5, rtpCooldown = 120, rtpRadius = 10000;
 
     if (config && config.rtpConfig) {
         rtpLimit = config.rtpConfig.limit || 5;
@@ -629,15 +675,9 @@ function menuAdminRtpCategory(player) {
 
     forceShow(player, form, res => {
         if (res.canceled) return menuMemberSet(player); 
-        
         let inputLimit = res.formValues[0] === "" ? rtpLimit : parseInt(res.formValues[0]);
         let inputCooldown = res.formValues[1] === "" ? rtpCooldown : parseInt(res.formValues[1]);
         let inputRadius = res.formValues[2] === "" ? rtpRadius : parseInt(res.formValues[2]);
-
-        if (isNaN(inputLimit) || isNaN(inputCooldown) || isNaN(inputRadius)) {
-            player.sendMessage("§c[Admin] Gagal Disimpan! Masukkan angka yang valid.");
-            return;
-        }
 
         if (!config.rtpConfig) config.rtpConfig = {};
         config.rtpConfig.limit = inputLimit;
@@ -651,7 +691,6 @@ function menuAdminRtpCategory(player) {
 
 function menuToggleMenu(player) {
     const config = getConfig();
-    
     let clanStatus = true, tpaStatus = true, rtpStatus = true;
     let claimStatus = true, sWarpStatus = true, pWarpStatus = true;
 
@@ -675,7 +714,6 @@ function menuToggleMenu(player) {
 
     forceShow(player, form, res => {
         if (res.canceled) return menuMemberSet(player); 
-        
         if (!config.menuToggles) config.menuToggles = {};
         config.menuToggles.clan = res.formValues[0];
         config.menuToggles.tpa = res.formValues[1];
@@ -683,7 +721,6 @@ function menuToggleMenu(player) {
         config.menuToggles.claimland = res.formValues[3];
         config.menuToggles.serverwarp = res.formValues[4];
         config.menuToggles.playerwarp = res.formValues[5];
-        
         saveConfig(config);
         player.sendMessage("§a[Admin] Toggles Menu berhasil disimpan!");
     });
@@ -691,10 +728,7 @@ function menuToggleMenu(player) {
 
 function menuMemberConfig(player) {
     const config = getConfig();
-    
-    let currentMaxMem = 15;
-    let currentCost = 50000;
-    let currentCool = 7;
+    let currentMaxMem = 15, currentCost = 50000, currentCool = 7;
 
     if (config && config.memberConfig) {
         currentMaxMem = config.memberConfig.maxClanMembers || 15;
@@ -704,29 +738,22 @@ function menuMemberConfig(player) {
 
     const form = new ModalFormData()
         .title("MEMBER CONFIG")
-        .textField(`Maks Member Clan (Saat ini: ${currentMaxMem})\nKosongkan jika tidak ingin diubah:`, "Ketik angka baru di sini...")
-        .textField(`Harga Ganti Nama (Saat ini: $${currentCost})\nKosongkan jika tidak ingin diubah:`, "Ketik angka baru di sini...")
-        .textField(`Cooldown Rename (Saat ini: ${currentCool} Hari)\nKosongkan jika tidak ingin diubah:`, "Ketik angka baru di sini...");
+        .textField(`Maks Member Clan (Saat ini: ${currentMaxMem})\nKosongkan jika tidak ingin diubah:`, "Ketik angka...")
+        .textField(`Harga Ganti Nama (Saat ini: $${currentCost})\nKosongkan jika tidak ingin diubah:`, "Ketik angka...")
+        .textField(`Cooldown Rename (Saat ini: ${currentCool} Hari)\nKosongkan jika tidak ingin diubah:`, "Ketik angka...");
 
     forceShow(player, form, res => {
         if (res.canceled) return menuAdminClanCategory(player); 
-        
         let inputMax = res.formValues[0] === "" ? currentMaxMem : parseInt(res.formValues[0]);
         let inputCost = res.formValues[1] === "" ? currentCost : parseInt(res.formValues[1]);
         let inputCool = res.formValues[2] === "" ? currentCool : parseInt(res.formValues[2]);
-
-        if (isNaN(inputMax) || isNaN(inputCost) || isNaN(inputCool)) {
-            player.sendMessage("§c[Admin] Gagal Disimpan! Kamu memasukkan huruf, bukan angka.");
-            return;
-        }
 
         if (!config.memberConfig) config.memberConfig = {};
         config.memberConfig.maxClanMembers = inputMax;
         config.memberConfig.clanRenameCost = inputCost;
         config.memberConfig.clanRenameCooldown = inputCool;
-        
         saveConfig(config);
-        player.sendMessage("§a[Admin] Config Member berhasil diperbarui!");
+        player.sendMessage("§a[Admin] Config Member diperbarui!");
     });
 }
 
@@ -738,46 +765,181 @@ function menuAdminManageClans(player) {
         .title("Manage Clans")
         .body(`Total Clan Aktif: ${activeClans.length}\nKlik clan untuk menghapusnya secara paksa:`);
         
-    if (activeClans.length === 0) {
-        form.button("§lKembali");
-    } else {
-        activeClans.forEach(cName => {
-            form.button(`§l§c${cName}\n§r§8Leader: ${clans[cName].leader}`);
-        });
-    }
+    if (activeClans.length === 0) form.button("§lKembali");
+    else activeClans.forEach(cName => form.button(`§l§c${cName}\n§r§8Leader: ${clans[cName].leader}`));
 
     forceShow(player, form, res => {
-        if (res.canceled) return menuAdminClanCategory(player);
-        if (activeClans.length === 0) return menuAdminClanCategory(player);
-        
-        const targetClan = activeClans[res.selection];
-        menuAdminDeleteClan(player, targetClan);
+        if (res.canceled || activeClans.length === 0) return menuAdminClanCategory(player);
+        menuAdminDeleteClan(player, activeClans[res.selection]);
     });
 }
 
 function menuAdminDeleteClan(player, clanName) {
     const form = new MessageFormData()
         .title("Hapus Clan?")
-        .body(`Apakah kamu yakin ingin MENGHAPUS PAKSA clan §e${clanName}§r?\nSemua anggotanya akan dikeluarkan dari clan.`)
+        .body(`Apakah kamu yakin ingin MENGHAPUS PAKSA clan §e${clanName}§r?`)
         .button1("§l§cHAPUS PAKSA")
         .button2("BATAL");
 
     forceShow(player, form, res => {
         if (res.selection === 1 || res.canceled) return menuAdminManageClans(player);
-        
         const clans = getClans();
         if(clans[clanName]) {
             [clans[clanName].leader, ...(clans[clanName].members || [])].forEach(mName => {
                 const p = world.getPlayers({ name: mName })[0];
                 if (p) {
                     p.setDynamicProperty("clan", "");
-                    p.sendMessage(`§c[Admin] Clan ${clanName} telah dihapus paksa oleh Admin.`);
+                    p.sendMessage(`§c[Admin] Clan ${clanName} dihapus paksa.`);
                 }
             });
             delete clans[clanName];
             saveClans(clans);
         }
-        player.sendMessage(`§a[Admin] Clan ${clanName} berhasil dihapus dari database.`);
+        player.sendMessage(`§a[Admin] Clan ${clanName} dihapus dari database.`);
         menuAdminManageClans(player);
+    });
+}
+
+// ==========================================
+// ADMIN: LAND MANAGER (BARU)
+// ==========================================
+function menuAdminLandCategory(player) {
+    const form = new ActionFormData()
+        .title("§lLAND SETTING")
+        .body("Pengaturan sistem Claim Land Server:")
+        .button("Manage Member Lands\n§8Teleport & Hapus Land", "textures/ui/icon_map")
+        .button("Land Limit Config\n§8Atur Mode, Limit & Harga", "textures/ui/icon_setting")
+        .button("Limit Per-Rank\n§8Atur Limit Khusus Rank VIP", "textures/ui/permissions_op_crown")
+        .button("§cKembali", "textures/ui/cancel");
+
+    forceShow(player, form, res => {
+        if (res.canceled || res.selection === 3) return menuMemberSet(player);
+        if (res.selection === 0) menuAdminManageLands(player);
+        if (res.selection === 1) menuAdminLandConfig(player);
+        if (res.selection === 2) menuAdminLandRankLimits(player);
+    });
+}
+
+function menuAdminManageLands(player) {
+    const db = fetchAllLandData();
+    const landIds = Object.keys(db);
+    
+    const form = new ActionFormData()
+        .title("Manage Lands")
+        .body(`Total Land Terdaftar: ${landIds.length}\nKlik untuk Mengelola:`);
+
+    if (landIds.length === 0) {
+        form.button("Kembali");
+    } else {
+        landIds.forEach(id => {
+            const l = db[id];
+            form.button(`§l§b${l.name}\n§r§8Owner: ${l.owner} | Dim: ${l.dim.replace("minecraft:", "")}`);
+        });
+    }
+
+    forceShow(player, form, res => {
+        if (res.canceled || landIds.length === 0) return menuAdminLandCategory(player);
+        menuAdminLandAction(player, landIds[res.selection]);
+    });
+}
+
+function menuAdminLandAction(player, landId) {
+    const db = fetchAllLandData();
+    const l = db[landId];
+    if (!l) return player.sendMessage("§cLand sudah tidak ditemukan!");
+
+    const sizeX = Math.abs(l.max.x - l.min.x) + 1;
+    const sizeZ = Math.abs(l.max.z - l.min.z) + 1;
+    const totalBlocks = sizeX * sizeZ;
+
+    const form = new ActionFormData()
+        .title(`Aksi: ${l.name}`)
+        .body(`§eOwner: §f${l.owner}\n§eDimensi: §f${l.dim}\n§eLuas: §f${sizeX}x${sizeZ} (${totalBlocks} Block)\n§eKoordinat: §fX:${l.min.x} Z:${l.min.z}\n\nPilih aksi sebagai Admin:`)
+        .button("§l§2Teleport ke Land", "textures/ui/send_icon")
+        .button("§l§cHapus Paksa Land", "textures/ui/trash_default")
+        .button("Kembali");
+
+    forceShow(player, form, res => {
+        if (res.canceled || res.selection === 2) return menuAdminManageLands(player);
+        
+        if (res.selection === 0) {
+            const cX = Math.floor((l.min.x + l.max.x) / 2);
+            const cZ = Math.floor((l.min.z + l.max.z) / 2);
+            player.teleport({ x: cX, y: 319, z: cZ }, { dimension: world.getDimension(l.dim) });
+            player.addTag("loadchunck`" + JSON.stringify({ x: cX, z: cZ }));
+            player.sendMessage(`§a[Admin] Teleportasi ke Land ${l.name}...`);
+        }
+        
+        if (res.selection === 1) {
+            const confirmForm = new MessageFormData()
+                .title("HAPUS LAND?")
+                .body(`Yakin ingin MENGHAPUS Land §e${l.name}§r milik §b${l.owner}§r?`)
+                .button1("§l§cHAPUS PAKSA")
+                .button2("BATAL");
+            
+            forceShow(player, confirmForm, confirmRes => {
+                if (confirmRes.selection === 1 || confirmRes.canceled) return menuAdminLandAction(player, landId);
+                const currentDb = fetchAllLandData();
+                delete currentDb[landId];
+                saveAllLandData(currentDb);
+                player.sendMessage(`§a[Admin] Land milik ${l.owner} berhasil dihapus!`);
+                menuAdminManageLands(player);
+            });
+        }
+    });
+}
+
+function menuAdminLandConfig(player) {
+    const config = getConfig();
+    if (!config.land) config.land = { mode: "count", defaultLimit: 3, price: 5000 };
+    const isBlockMode = config.land.mode === "block";
+
+    const form = new ModalFormData()
+        .title("Land System Config")
+        .toggle("Mode Claim\n§8(Kiri = Batas Jumlah Land | Kanan = Batas Total Block)§r", isBlockMode)
+        .textField(`Limit Default (Member Biasa)\n§8Saat ini: ${config.land.defaultLimit}`, "Ketik angka batas limit...", String(config.land.defaultLimit))
+        .textField(`Harga Claim\n§8(Per 1 Land ATAU Per 1 Block sesuai mode)`, "Ketik harga...", String(config.land.price));
+
+    forceShow(player, form, res => {
+        if (res.canceled) return menuAdminLandCategory(player);
+        config.land.mode = res.formValues[0] ? "block" : "count";
+        config.land.defaultLimit = parseInt(res.formValues[1]) || 3;
+        config.land.price = parseInt(res.formValues[2]) || 5000;
+        saveConfig(config);
+        
+        const modeName = config.land.mode === "block" ? "Batas Block" : "Batas Jumlah Land";
+        player.sendMessage(`§a[Admin] Konfigurasi tersimpan! Mode: §e${modeName}§a.`);
+    });
+}
+
+function menuAdminLandRankLimits(player) {
+    const ranks = getRanks();
+    const rankIds = Object.keys(ranks);
+    
+    if (rankIds.length === 0) return player.sendMessage("§cBelum ada rank yang dibuat.");
+
+    const config = getConfig();
+    if (!config.land) config.land = { mode: "count", defaultLimit: 3, price: 5000, rankLimits: {} };
+    if (!config.land.rankLimits) config.land.rankLimits = {};
+
+    const form = new ModalFormData()
+        .title("Set Limit Khusus Rank")
+        .dropdown("Pilih Rank:", rankIds)
+        .textField("Masukkan Limit Baru Untuk Rank Ini\n§8(Isi 0 jika ingin menghapus & mengikuti Limit Default)", "Angka Limit...");
+
+    forceShow(player, form, res => {
+        if (res.canceled) return menuAdminLandCategory(player);
+        const rankId = rankIds[res.formValues[0]];
+        const limit = parseInt(res.formValues[1]) || 0;
+
+        if (limit > 0) {
+            config.land.rankLimits[rankId] = limit;
+            player.sendMessage(`§a[Admin] Limit claim untuk rank §e${rankId}§a diset menjadi §b${limit}§a!`);
+        } else {
+            delete config.land.rankLimits[rankId];
+            player.sendMessage(`§e[Admin] Limit khusus rank §e${rankId}§e dihapus.`);
+        }
+        
+        saveConfig(config);
     });
 }

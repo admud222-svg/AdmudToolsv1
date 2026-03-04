@@ -62,7 +62,7 @@ function getLandVolume(min, max) {
     return Math.abs(max.x - min.x + 1) * Math.abs(max.y - min.y + 1) * Math.abs(max.z - min.z + 1);
 }
 
-// Mendapatkan total blok yang sudah diklaim pemain (DI-EXPORT AGAR DIBACA PLACEHOLDER)
+// Mendapatkan total blok yang sudah diklaim pemain
 export function getPlayerTotalClaimedBlocks(playerName) {
     const db = fetchAllLandData();
     let total = 0;
@@ -79,6 +79,14 @@ function checkOverlap(minA, maxA, minB, maxB) {
     return (minA.x <= maxB.x && maxA.x >= minB.x) &&
            (minA.y <= maxB.y && maxA.y >= minB.y) &&
            (minA.z <= maxB.z && maxA.z >= minB.z);
+}
+
+// FORMATTER ANGKA METRIC KHUSUS SHOP
+function toMetric(num) {
+    if (num >= 1000000000) return (num / 1000000000).toFixed(1).replace(/\.0$/, '') + "B";
+    if (num >= 1000000) return (num / 1000000).toFixed(1).replace(/\.0$/, '') + "M";
+    if (num >= 1000) return (num / 1000).toFixed(1).replace(/\.0$/, '') + "K";
+    return num.toString();
 }
 
 // ==========================================
@@ -102,26 +110,26 @@ export function openClaimMenu(player) {
     }
 
     const hubForm = new ActionFormData()
-        .title("§l§aCLAIM LAND SYSTEM")
+        .title("§l§aCLAIM LAND")
         .body(`§7Atur wilayah kekuasaanmu di sini.\n\n§fStatus Kordinat:\n§8- Pojok 1: ${statusPos1}\n§8- Pojok 2: ${statusPos2}`)
-        .button("Set Posisi 1\n§8Gunakan lokasi saat ini", "textures/items/wooden_axe")
-        .button("Set Posisi 2\n§8Gunakan lokasi saat ini", "textures/items/wooden_axe")
-        .button("§2Claim Land Baru\n§8Daftarkan kordinat", "textures/items/emerald")
-        .button("Manage Land\n§8Lahan Milikmu", "textures/ui/icon_setting")
-        .button("Land Shop\n§8Pasar Properti", "textures/ui/trade_icon")
-        .button(`Land Contact\n§8Pesan Masuk: ${unreadCount > 0 ? "§c" + unreadCount : "§70"}`, "textures/ui/message");
+        .button("Set Posisi 1\n§8Gunakan lokasi saat ini", "textures/items/wooden_axe") // Index 0
+        .button("§2Claim Land\n§8Daftarkan kordinat", "textures/items/emerald")       // Index 1
+        .button("Set Posisi 2\n§8Gunakan lokasi saat ini", "textures/items/wooden_axe") // Index 2
+        .button("Manage Land\n§8Lahan Milikmu", "textures/ui/icon_setting")             // Index 3
+        .button("Land Shop\n§8Pasar Properti", "textures/ui/trade_icon")                // Index 4
+        .button(`Land Contact\n§8Pesan Masuk: ${unreadCount > 0 ? "§c" + unreadCount : "§70"}`, "textures/ui/message"); // Index 5
 
     player.playSound("random.pop");
 
     hubForm.show(player).then(res => {
         if (res.canceled) return;
         switch (res.selection) {
-            case 0: return registerCoord(player, 1);
-            case 1: return registerCoord(player, 2);
-            case 2: return menuConfirmClaim(player);
-            case 3: return menuManageList(player);
-            case 4: return menuShopList(player);
-            case 5: return menuInboxCenter(player);
+            case 0: return registerCoord(player, 1);    
+            case 1: return menuConfirmClaim(player);    
+            case 2: return registerCoord(player, 2);    
+            case 3: return menuManageList(player);      
+            case 4: return menuShopList(player);        
+            case 5: return menuInboxCenter(player);     
         }
     });
 }
@@ -150,35 +158,29 @@ function menuConfirmClaim(player) {
         return;
     }
 
-    // CEK DIMENSI (Supaya tidak error klaim beda dimensi)
     if (data.pos1.dim !== data.pos2.dim) {
         player.sendMessage("§c[Gagal] Posisi 1 dan Posisi 2 harus berada di dimensi yang sama!");
         return;
     }
 
-    // HITUNG KOORDINAT MIN & MAX
     const min = { x: Math.min(data.pos1.x, data.pos2.x), y: Math.min(data.pos1.y, data.pos2.y), z: Math.min(data.pos1.z, data.pos2.z) };
     const max = { x: Math.max(data.pos1.x, data.pos2.x), y: Math.max(data.pos1.y, data.pos2.y), z: Math.max(data.pos1.z, data.pos2.z) };
     
-    // CEK TABRAKAN (OVERLAP) DENGAN LAHAN LAIN
     const lands = fetchAllLandData();
     for (const id in lands) {
         const existingLand = lands[id];
-        // Jika di dimensi yang sama dan areanya bertabrakan
         if (existingLand.dim === data.pos1.dim && checkOverlap(min, max, existingLand.min, existingLand.max)) {
             player.sendMessage(`§c[Gagal] Area ini bertabrakan dengan lahan milik §e${existingLand.owner} §c(§f${existingLand.name}§c)!`);
             player.playSound("note.bass");
-            return; // Gagalkan proses claim
+            return; 
         }
     }
 
-    // HITUNG LIMIT & BLOK BARU
     const newVolume = getLandVolume(min, max);
     const totalClaimed = getPlayerTotalClaimedBlocks(player.name);
     const rankLimit = getRankClaimLimit(player);
     const isUnlimited = rankLimit === -1;
 
-    // Tolak pembuatan lahan jika limit blok kurang dan bukan unlimited
     if (!isUnlimited && (totalClaimed + newVolume > rankLimit)) {
         player.sendMessage(`§c[Gagal] Sisa Limit Claim Block kamu tidak cukup!\n§7Terpakai: §c${totalClaimed}§8/§e${rankLimit}\n§7Butuh: §b${newVolume} Blok`);
         return;
@@ -286,15 +288,17 @@ function handleMarketToggle(player, land) {
 
 function menuEditLandPerms(player, land) {
     const g = land.generalPerms;
+    
+    // UPDATE FIX: Menggunakan format opsi `{ defaultValue: true/false }` sesuai standar API Bedrock versi terbaru
     const form = new ModalFormData()
         .title("Edit Lahan")
-        .textField("Nama Lahan:", "Nama...", land.name)
-        .toggle("Public Boleh Masuk?", g.publicEnter)
-        .toggle("Public Boleh Interact?", g.publicInteract)
-        .toggle("Anti Ledakan (TNT/Creeper)", g.explosions)
-        .toggle("Anti Monster Spawn", g.monsters)
-        .toggle("Izin PvP di Area", g.pvp)
-        .toggle("Trust Member Clan?", g.trustClan);
+        .textField("Nama Lahan:", "Nama...", { defaultValue: land.name })
+        .toggle("Public Boleh Masuk?", { defaultValue: !!g.publicEnter })
+        .toggle("Public Boleh Interact?", { defaultValue: !!g.publicInteract })
+        .toggle("Anti Ledakan (TNT/Creeper)", { defaultValue: !!g.explosions })
+        .toggle("Anti Monster Spawn", { defaultValue: !!g.monsters })
+        .toggle("Izin PvP di Area", { defaultValue: !!g.pvp })
+        .toggle("Trust Member Clan?", { defaultValue: !!g.trustClan });
 
     form.show(player).then(res => {
         if (res.canceled) return;
@@ -310,7 +314,7 @@ function menuEditLandPerms(player, land) {
         target.generalPerms.trustClan = res.formValues[6];
 
         commitLandData(db);
-        player.sendMessage("§a[Claim] Berhasil memperbarui data lahan.");
+        player.sendMessage("§a[Claim] Berhasil memperbarui pengaturan lahan.");
     });
 }
 
@@ -350,15 +354,16 @@ function menuTrustHub(player, land) {
             const names = players.map(p => p.name);
             if (names.length === 0) return player.sendMessage("§cTidak ada player online.");
 
+            // UPDATE FIX: Penulisan standar opsi
             const f = new ModalFormData()
                 .title("Beri Izin Trust")
                 .dropdown("Pilih Player Online:", names)
-                .toggle("Izin: Letakkan Block", false)
-                .toggle("Izin: Hancurkan Block", false)
-                .toggle("Izin: Hit Entity/PVP", false)
-                .toggle("Izin: Bisa Terbang", false)
-                .toggle("Izin: Buka Chest/Pintu", true)
-                .toggle("Izin: Gunakan TPA", true);
+                .toggle("Izin: Letakkan Block", { defaultValue: false })
+                .toggle("Izin: Hancurkan Block", { defaultValue: false })
+                .toggle("Izin: Hit Entity/PVP", { defaultValue: false })
+                .toggle("Izin: Bisa Terbang", { defaultValue: false })
+                .toggle("Izin: Buka Chest/Pintu", { defaultValue: true })
+                .toggle("Izin: Gunakan TPA", { defaultValue: true });
 
             f.show(player).then(r => {
                 if (r.canceled) return;
@@ -382,10 +387,13 @@ function menuTrustHub(player, land) {
                 if (r.canceled) return;
                 const target = trustedNames[r.selection];
                 const data = land.trusted[target];
+                
+                // UPDATE FIX: Penulisan standar opsi
                 const m = new ModalFormData().title("Edit: " + target)
-                    .toggle("Bisa Naro", data.place)
-                    .toggle("Bisa Ancurin", data.break)
-                    .toggle("§cHAPUS TRUST", false);
+                    .toggle("Bisa Naro", { defaultValue: !!data.place })
+                    .toggle("Bisa Ancurin", { defaultValue: !!data.break })
+                    .toggle("§cHAPUS TRUST", { defaultValue: false });
+                    
                 m.show(player).then(resFinal => {
                     if (resFinal.canceled) return;
                     let db = fetchAllLandData();
@@ -414,7 +422,10 @@ function menuShopList(player) {
         form.body("Pasar saat ini kosong.");
         form.button("Kembali");
     } else {
-        market.forEach(l => form.button(`§l${l.name}\n§r§a$${l.price} §8- Owner: ${l.owner}`));
+        market.forEach(l => {
+            const luasBlok = getLandVolume(l.min, l.max);
+            form.button(`§e$${toMetric(l.price)} §f${l.name}\n§b${toMetric(luasBlok)} Blok`, "textures/ui/icon_new");
+        });
     }
 
     form.show(player).then(res => {
@@ -423,7 +434,7 @@ function menuShopList(player) {
 
         const sub = new ActionFormData()
             .title("Beli Lahan")
-            .body(`Nama: ${l.name}\nOwner: ${l.owner}\nHarga: $${l.price}\nLuas Lahan: ${getLandVolume(l.min, l.max)} Blok`)
+            .body(`Nama: ${l.name}\nOwner: ${l.owner}\nHarga: $${toMetric(l.price)}\nLuas Lahan: ${toMetric(getLandVolume(l.min, l.max))} Blok`)
             .button("§2Beli Sekarang\n§rOtomatis Teleport", "textures/ui/realms_green_check")
             .button("§dHubungi Penjual\n§rKirim Pesan Chat", "textures/ui/message")
             .button("Kembali");
@@ -436,13 +447,11 @@ function menuShopList(player) {
 }
 
 function handlePurchase(player, land) {
-    // CEK LIMIT BUYER SEBELUM DIBELI
     const newVolume = getLandVolume(land.min, land.max);
     const totalClaimed = getPlayerTotalClaimedBlocks(player.name);
     const rankLimit = getRankClaimLimit(player);
     const isUnlimited = rankLimit === -1;
 
-    // Tolak pembelian kalau limitnya ga cukup (dan bukan unlimited)
     if (!isUnlimited && (totalClaimed + newVolume > rankLimit)) {
         return player.sendMessage(`§c[Gagal] Sisa Limit Claim Block kamu tidak cukup untuk menampung lahan ini!\n§7Luas lahan: §b${newVolume} Blok\n§7Sisa Limitmu: §c${rankLimit - totalClaimed} Blok`);
     }
@@ -465,9 +474,6 @@ function handlePurchase(player, land) {
     player.sendMessage("§a[Market] Lahan berhasil dibeli!");
 }
 
-/**
- * UI Chat Pembeli -> Penjual
- */
 function openChatInterface(player, land) {
     const id = `${land.id}_${player.name}`;
     let db = fetchInboxMessages();
@@ -487,9 +493,8 @@ function openChatInterface(player, land) {
 
     const form = new ModalFormData()
         .title("§l§eKIRIM PESAN") 
-        // RIWAYAT CHAT DIPINDAH KE SINI:
         .label(`§e[Menghubungi: §a${land.owner}§e] §7|| §e[Lahan: §d${land.name}§e]\n§fClaimblock Kamu: §b${totalClaimed}§8/ ${limitDisplay}\n\n§eRiwayat Chat:\n§7${chatsText || "Belum ada pesan"}`)
-        .textField("", "Ketik pesan..."); // Label dikosongkan agar sejajar tombol kirim
+        .textField("", "Ketik pesan...");
 
     form.show(player).then(res => {
         if (res.canceled) return system.run(() => menuShopList(player));
@@ -528,9 +533,6 @@ function menuInboxCenter(player) {
     });
 }
 
-/**
- * UI Chat Penjual -> Pembeli
- */
 function openReplyInterface(player, key) {
     let cur = fetchInboxMessages();
     cur[key].unread = 0; 
@@ -546,9 +548,8 @@ function openReplyInterface(player, key) {
 
     const f = new ModalFormData()
         .title("§l§eBALAS PESAN")
-        // RIWAYAT CHAT DIPINDAH KE SINI:
         .label(`§e[Membalas: §a${cur[key].buyer}§e] §7|| §e[Lahan: §d${cur[key].landName}§e]\n§fClaimblock Kamu: §b${totalClaimed}§8/ ${limitDisplay}\n\n§eRiwayat:\n§7${logs || "Belum ada pesan"}`)
-        .textField("", "Ketik balasan..."); // Label dikosongkan agar sejajar tombol kirim
+        .textField("", "Ketik balasan...");
 
     f.show(player).then(r => {
         if (r.canceled) return system.run(() => menuInboxCenter(player));

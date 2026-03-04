@@ -66,14 +66,14 @@ export function openRtpMenu(player) {
 
     const form = new ActionFormData()
         .title("§l§eRANDOM TELEPORT")
-        // Jarak \n ditambahkan agar Status turun ke bawah mendekati tombol Kembali
-        .body(`§eLimit RTP: §b${sisaLimit}/${MAX_LIMIT}§r\n§eCooldown: ${cooldownText}\n\n\n§7Status: ${currentDim}`)
+        // Text diubah agar rapi masuk ke panel kiri
+        .body(`§l§fINFO RTP§r\n§8───────────\n§7Limit: §b${sisaLimit}§8/§3${MAX_LIMIT}\n§7CD: ${cooldownText}\n\n§7Posisi Saat Ini:\n${currentDim}`)
         
-        // URUTAN TOMBOL DIUBAH (Nether, Overworld, End)
-        .button("Nether\n§8RTP", "textures/items/flint_and_steel")    // Index 0
-        .button("Overworld\n§8RTP", "textures/ui/icon_recipe_nature") // Index 1
-        .button("The End\n§8RTP", "textures/items/ender_pearl")       // Index 2
-        .button("Kembali\n§8Tutup Menu", "textures/ui/cancel");       // Index 3
+        // Deskripsi tombol diperjelas karena sekarang bentuk tombolnya lebar (Rectangular)
+        .button("§l§4Nether\n§r§8Jelajahi Dunia Bawah", "textures/blocks/netherrack")    // Index 0
+        .button("§l§2Overworld\n§r§8Jelajahi Dunia Utama", "textures/blocks/grass_side_carried") // Index 1
+        .button("§l§5The End\n§r§8Jelajahi Dunia Akhir", "textures/blocks/end_stone")       // Index 2
+        .button("Kembali", "textures/ui/cancel");                                              // Index 3 
 
     player.playSound("random.pop", { volume: 0.8, pitch: 1.0 });
 
