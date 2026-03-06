@@ -1,7 +1,7 @@
 import { world, system } from "@minecraft/server";
 import { getPlayerRank } from "./plugin/ranks/rank.js";
-import { getPlayerTotalClaimedBlocks, fetchAllLandData } from "./plugin/land/claimland.js"; // Import database land
-import { getConfig } from "./config.js"; // Import config untuk cek mode
+import { getPlayerTotalClaimedBlocks, fetchAllLandData } from "./plugin/land/claimland.js"; 
+import { getConfig } from "./config.js"; 
 
 // =========================================
 // AUTO-CREATE SCOREBOARD OBJECTIVES
@@ -45,7 +45,7 @@ function formatMetric(num) {
 // METRIC KHUSUS CLAIM LIMIT (>= 10,000 BARU JADI 10K)
 // =========================================
 function formatClaimMetric(num) {
-    if (num === "∞") return num; 
+    if (num === "∞" || num === -1) return "∞"; 
     
     let val = Number(num);
     if (isNaN(val)) return num; 
@@ -153,15 +153,13 @@ export function resolvePlaceholders(textObj, player, isChatMsg = "") {
     const hp = player.getComponent("minecraft:health")?.currentValue || 20;
     const date = new Date();
 
-    // === LOGIKA CLAIM LAND (Membaca Mode dari Config) ===
-    const config = getConfig();
-    const landSet = config.land || { mode: "count", defaultLimit: 3, rankLimits: {} };
-    const pRank = rank.id; 
-    
-    let claimLimit = (landSet.rankLimits && landSet.rankLimits[pRank] !== undefined) ? landSet.rankLimits[pRank] : landSet.defaultLimit;
+    // === LOGIKA CLAIM LAND (DIUBAH UNTUK MEMBACA DARI RANK) ===
+    // Sekarang membaca landMode dan landLimit LANGSUNG dari rank pemain
+    const claimMode = rank.landMode || "count"; 
+    const claimLimit = rank.landLimit !== undefined ? rank.landLimit : 3;
     let currentClaim = 0;
 
-    if (landSet.mode === "block") {
+    if (claimMode === "block") {
         currentClaim = getPlayerTotalClaimedBlocks(player.name);
     } else {
         const db = fetchAllLandData();
@@ -173,7 +171,7 @@ export function resolvePlaceholders(textObj, player, isChatMsg = "") {
     }
 
     const limitDisplay = claimLimit === -1 ? "∞" : claimLimit; 
-    const currentLandOwner = getCurrentLandOwner(player); // Ambil data Land saat ini
+    const currentLandOwner = getCurrentLandOwner(player); 
 
     let processed = textObj.text
         .replace(/@NAMA/g, player.name)
@@ -187,7 +185,7 @@ export function resolvePlaceholders(textObj, player, isChatMsg = "") {
         .replace(/@DEATH/g, formatMetric(getScore(player, "deaths")))
         .replace(/@CLAIM/g, formatClaimMetric(currentClaim))
         .replace(/@LIMIT/g, formatClaimMetric(limitDisplay))
-        .replace(/@LAND/g, currentLandOwner) // <=== REPLACE UNTUK @LAND
+        .replace(/@LAND/g, currentLandOwner) 
         .replace(/@TPS/g, realTPS) 
         .replace(/@PING/g, currentFakePing)
         .replace(/@ONLINE/g, world.getPlayers().length)

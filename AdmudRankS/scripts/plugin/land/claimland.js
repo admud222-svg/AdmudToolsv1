@@ -84,6 +84,10 @@ function toMetric(num) {
 // [2] CEK KELAYAKAN & LIMIT (TERHUBUNG KE RANK)
 // ==========================================
 
+// ==========================================
+// [2] CEK KELAYAKAN & LIMIT (TERHUBUNG KE RANK)
+// ==========================================
+
 export function checkClaimEligibility(player, blocksToClaim) {
     const config = getConfig();
     const db = fetchAllLandData();
@@ -114,11 +118,13 @@ export function checkClaimEligibility(player, blocksToClaim) {
         if ((currentOwnedBlocks + blocksToClaim) > maxLimit) {
             return { allowed: false, price: 0, reason: `Melebihi Limit Block Rankmu!\n§7Batas Rank §e${pRankId.toUpperCase()}§7: §e${maxLimit} block §7| Terpakai: §c${currentOwnedBlocks}` };
         }
-        return { allowed: true, price: globalLandPrice * blocksToClaim, reason: "" };
+        // JIKA MODE BLOCK: Harga di-set ke 0 (GRATIS)
+        return { allowed: true, price: 0, reason: "" };
     } else {
         if (currentOwnedLands >= maxLimit) {
             return { allowed: false, price: 0, reason: `Melebihi Limit Land Rankmu!\n§7Maksimal Rank §e${pRankId.toUpperCase()}§7 hanya boleh memiliki §e${maxLimit} §7Area Land.` };
         }
+        // JIKA MODE AREA (Count): Bayar per area sesuai harga Global
         return { allowed: true, price: globalLandPrice, reason: "" };
     }
 }

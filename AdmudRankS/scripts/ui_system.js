@@ -5,7 +5,8 @@ import { getConfig, saveConfig, DEFAULT_CONFIG } from "./config.js";
 import { world, system } from "@minecraft/server";
 import { getClans, saveClans } from "./plugin/clans/clan_db.js";
 import { fetchAllLandData, saveAllLandData } from "./plugin/land/claimland.js";
-import { menuAdminPWarpConfig } from "./plugin/playerwarp/playerwarp.js";
+// IMPORT MENU ADMIN MANAGE WARP YANG BARU!
+import { menuAdminManagePlayerWarps } from "./plugin/playerwarp/playerwarp.js";
 import { menuAdminWarpSet, openServerWarpsUI } from "./plugin/warps/warp.js";
 
 const ANIM_TYPES = ["none", "rgb", "wave", "shiny", "typing", "fadein"];
@@ -313,7 +314,7 @@ function menuEditKitInfo(player, kitID, isNew) {
 }
 
 // ==========================================
-// ADMIN: RANK MANAGER (SEKARANG ADA SETTING LAND!)
+// ADMIN: RANK MANAGER (DENGAN SETTING WARP LIMIT)
 // ==========================================
 function menuManageRanks(player) {
     const ranks = getRanks();
@@ -330,7 +331,7 @@ function menuManageRanks(player) {
             const selectedRank = list[res.selection];
             const subForm = new ActionFormData()
                 .title(`Manage ${selectedRank}§t§t§1`)
-                .button("Edit Info & Limit Rank\n§8(Prefix, Harga, Claim Land)")
+                .button("Edit Info & Limit Rank\n§8(Prefix, Harga, Land, Warp)")
                 .button("Manage +cmd\n§8(Custom Commands)")
                 .button("§cHapus Rank\n§8(Delete Permanen)"); 
 
@@ -367,7 +368,7 @@ function menuDeleteRank(player, rankID) {
 
 function menuEditRank(player, rankID, isNew) {
     const ranks = getRanks();
-    const data = isNew ? { prefix: "", priority: 0, price: 0, landMode: "count", landLimit: 3, commands: {} } : ranks[rankID];
+    const data = isNew ? { prefix: "", priority: 0, price: 0, landMode: "count", landLimit: 3, warpLimit: 1, commands: {} } : ranks[rankID];
     
     const form = new ModalFormData()
         .title(isNew ? "Create Rank" : `Edit ${rankID}`)
@@ -375,9 +376,10 @@ function menuEditRank(player, rankID, isNew) {
         .textField("Prefix", "§b[MVP]", { defaultValue: String(data.prefix || "") })
         .textField("Priority (0 terendah)", "ex: 2", { defaultValue: String(data.priority || 0) })
         .textField("Price ($)", "ex: 10000", { defaultValue: String(data.price || 0) })
-        // PENAMBAHAN FITUR LAND LIMIT DI DALAM RANK
         .toggle("Mode Claim Land Rank Ini\n§8(Kiri = Batas Area | Kanan = Batas Block)", { defaultValue: data.landMode === "block" })
-        .textField("Limit Claim Land\n§8(Jumlah Area/Block sesuai mode di atas)", "ex: 3", { defaultValue: String(data.landLimit || 3) });
+        .textField("Limit Claim Land\n§8(Jumlah Area/Block sesuai mode di atas)", "ex: 3", { defaultValue: String(data.landLimit || 3) })
+        // INPUT TAMBAHAN UNTUK LIMIT PLAYER WARP!
+        .textField("Limit Pembuatan Player Warp\n§8(Jumlah maksimal warp yang bisa dibuat rank ini)", "ex: 1", { defaultValue: String(data.warpLimit || 1) });
 
     forceShow(player, form, res => {
         if (res.canceled) return menuManageRanks(player);
@@ -388,10 +390,11 @@ function menuEditRank(player, rankID, isNew) {
             price: parseInt(res.formValues[3]) || 0, 
             landMode: res.formValues[4] ? "block" : "count",
             landLimit: parseInt(res.formValues[5]) || 3,
+            warpLimit: parseInt(res.formValues[6]) || 1, // SIMPAN LIMIT WARP
             commands: data.commands || {}
         };
         saveRanks(ranks);
-        player.sendMessage(`§aRank ${newID} berhasil disimpan! Rank ini menggunakan limit claim: ${ranks[newID].landLimit} ${ranks[newID].landMode}`);
+        player.sendMessage(`§aRank ${newID} berhasil disimpan!\n§eLimit Land: §f${ranks[newID].landLimit}\n§eLimit P-Warp: §f${ranks[newID].warpLimit}`);
     });
 }
 
@@ -642,7 +645,7 @@ function menuMemberSet(player) {
         .button("§lClan Setting\n§r§8Atur Harga & Hapus Clan", "textures/ui/icon_multiplayer")
         .button("§lRTP Setting\n§r§8Atur Limit & Radius RTP", "textures/ui/icon_map")
         .button("§lLand Setting\n§r§8Manage Land & Harga Server", "textures/ui/village_hero_effect")
-        .button("§lPlayer Warp Limit\n§r§8Atur Limit Pembuatan Pwarp", "textures/items/ender_pearl")
+        .button("§lPlayer Warps\n§r§8Manage & Hapus Warp Player", "textures/items/ender_pearl") // TOMBOL BERUBAH
         .button("§lToggles Menu\n§r§8Aktif/Matikan Fitur Server", "textures/ui/settings_glyph_color_2x")
         .button("§cKembali", "textures/ui/cancel");
 
@@ -651,7 +654,7 @@ function menuMemberSet(player) {
         if (res.selection === 0) menuAdminClanCategory(player);
         if (res.selection === 1) menuAdminRtpCategory(player);
         if (res.selection === 2) menuAdminLandCategory(player);
-        if (res.selection === 3) menuAdminPWarpConfig(player); 
+        if (res.selection === 3) menuAdminManagePlayerWarps(player); // MEMANGGIL FUNGSI BARU!
         if (res.selection === 4) menuToggleMenu(player);
     });
 }

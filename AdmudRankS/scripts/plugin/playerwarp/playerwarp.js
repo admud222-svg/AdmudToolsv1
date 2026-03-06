@@ -1,11 +1,5 @@
 import { world, system } from "@minecraft/server";
-import { ActionFormData, ModalFormData, MessageFormData } from "@minecraft/server-ui";
-
-// ===================================================================
-// [PENTING] JIKA MASIH ERROR "Import not found", UBAH BARIS DI BAWAH INI:
-// Ganti "../../config.js" menjadi "../config.js"
-// Ganti "../ranks/rank.js" menjadi "./ranks/rank.js"
-// ===================================================================
+import { ActionFormData, ModalFormData } from "@minecraft/server-ui";
 import { getConfig, saveConfig } from "../../config.js";
 import { getPlayerRank, getRanks } from "../ranks/rank.js";
 
@@ -65,12 +59,10 @@ export function openPlayerWarpMenu(player, filter = "all") {
     const warps = getPWarps();
     let warpIds = Object.keys(warps);
     
-    // Filter System
     if (filter === "free") warpIds = warpIds.filter(id => warps[id].isFree);
     if (filter === "paid") warpIds = warpIds.filter(id => !warps[id].isFree);
 
-    const form = new ActionFormData().title("§l§bPLAYER WARPS");
-
+    const form = new ActionFormData().title("§l§bPLAYER WARPS§t§t§1");
     let filterText = filter === "all" ? "Semua Warp" : (filter === "free" ? "Hanya Gratis" : "Hanya Berbayar");
     
     form.button(`§l§e[ Manage My Warps ]\n§r§8Buat/Edit Warp Kamu`, "textures/ui/icon_setting");
@@ -96,12 +88,11 @@ export function openPlayerWarpMenu(player, filter = "all") {
     });
 }
 
-// Alias buat jaga-jaga
 export const openPlayerWarpUI = openPlayerWarpMenu;
 
 function menuFilterPWarps(player) {
     new ActionFormData()
-        .title("Pilih Kategori")
+        .title("Pilih Kategori§t§t§1")
         .button("§lSemua Warp", "textures/ui/world_glyph")
         .button("§lHanya Gratis", "textures/ui/realms_green_check")
         .button("§lHanya Berbayar", "textures/ui/custom_currency")
@@ -119,23 +110,12 @@ function menuMyWarps(player) {
     const warps = getPWarps();
     const myWarpIds = Object.keys(warps).filter(id => warps[id].owner === player.name);
     
-    // Default limit system (Mencegah crash kalau config kosong)
-    let limit = 1;
-    try {
-        const config = getConfig();
-        const rankObj = getPlayerRank(player);
-        const rankId = rankObj ? rankObj.id : "member";
-        
-        if (config && config.playerWarp) {
-            limit = config.playerWarp.defaultLimit || 1;
-            if (config.playerWarp.rankLimits && config.playerWarp.rankLimits[rankId] !== undefined) {
-                limit = config.playerWarp.rankLimits[rankId];
-            }
-        }
-    } catch(e) {}
+    // MENGAMBIL LIMIT WARP LANGSUNG DARI SISTEM RANK!
+    const rank = getPlayerRank(player);
+    let limit = rank.warpLimit !== undefined ? rank.warpLimit : 1; 
 
     const form = new ActionFormData()
-        .title("§l§dMY WARPS")
+        .title("§l§dMY WARPS§t§t§1")
         .body(`Limit Pembuatan Warp Kamu: §e${myWarpIds.length} / ${limit}§r\n\nKelola warp milikmu di sini:`)
         .button("§l§2[+] Buat Warp di Sini", "textures/ui/color_plus");
 
@@ -160,14 +140,7 @@ function menuMyWarps(player) {
 function menuCreateEditPWarp(player, warpId) {
     const warps = getPWarps();
     const isNew = !warpId;
-    const data = isNew ? {
-        name: "My Warp",
-        desc: "Selamat datang di tempatku!",
-        isFree: true,
-        price: 1000,
-        currency: "money"
-    } : warps[warpId];
-
+    const data = isNew ? { name: "My Warp", desc: "Selamat datang di tempatku!", isFree: true, price: 1000, currency: "money" } : warps[warpId];
     const curIdx = data.currency === "xp" ? 1 : 0;
 
     const form = new ModalFormData()
@@ -178,13 +151,10 @@ function menuCreateEditPWarp(player, warpId) {
         .textField("Harga Tiket (Jika Berbayar):", "Contoh: 5000", { defaultValue: String(data.price) })
         .dropdown("Mata Uang Pembayaran:", ["Money (Uang)", "XP (Level)"], { defaultValueIndex: curIdx });
 
-    if (!isNew) {
-        form.toggle("§l§cHAPUS WARP INI? (Permanen)§r", { defaultValue: false });
-    }
+    if (!isNew) form.toggle("§l§cHAPUS WARP INI? (Permanen)§r", { defaultValue: false });
 
     form.show(player).then(res => {
         if (res.canceled) return menuMyWarps(player);
-
         if (!isNew && res.formValues[5]) {
             delete warps[warpId];
             savePWarps(warps);
@@ -204,12 +174,8 @@ function menuCreateEditPWarp(player, warpId) {
         const loc = player.location;
 
         warps[idToSave] = {
-            owner: player.name,
-            name: newName,
-            desc: newDesc,
-            isFree: newIsFree,
-            price: newPrice,
-            currency: newCur,
+            owner: player.name, name: newName, desc: newDesc, isFree: newIsFree,
+            price: newPrice, currency: newCur,
             x: isNew ? Math.floor(loc.x) + 0.5 : data.x,
             y: isNew ? Math.floor(loc.y) : data.y,
             z: isNew ? Math.floor(loc.z) + 0.5 : data.z,
@@ -234,7 +200,7 @@ function menuWarpDetails(player, warpId) {
     const dimStr = formatDim(w.dim);
 
     const form = new ActionFormData()
-        .title(`§l${w.name}`)
+        .title(`§l${w.name}§t§t§1`)
         .body(`§7Pemilik: §f${w.owner}\n§7Lokasi: ${dimStr}\n§7Biaya Masuk: ${priceStr}\n\n§eDeskripsi:\n§f"${w.desc}"`)
         .button("§l§2TELEPORT SEKARANG\n§r§8Bayar & Berangkat", "textures/ui/send_icon")
         .button("§cBatalkan", "textures/ui/cancel");
@@ -242,7 +208,6 @@ function menuWarpDetails(player, warpId) {
     form.show(player).then(res => {
         if (res.canceled || res.selection === 1) return openPlayerWarpMenu(player, "all");
         
-        // Logika Pembayaran
         if (!w.isFree && w.owner !== player.name) {
             if (w.currency === "money") {
                 const bal = getMoney(player);
@@ -252,7 +217,7 @@ function menuWarpDetails(player, warpId) {
             } else if (w.currency === "xp") {
                 if (player.level < w.price) return player.sendMessage(`§cKamu butuh ${w.price} XP Level untuk teleport ke sini!`);
                 player.addLevels(-w.price);
-                try { world.getDimension("overworld").runCommand(`xp ${w.price}L "${w.owner}"`); } catch(e){}
+                try { world.getDimension("overworld").runCommand(`xp ${w.price}L "${w.owner}"`); } catch(e){} 
             }
             player.sendMessage(`§aKamu membayar ${priceStr} kepada ${w.owner}.`);
         }
@@ -264,16 +229,11 @@ function menuWarpDetails(player, warpId) {
 function executePwarpTeleport(player, w) {
     player.addTag("loadchunck`" + JSON.stringify({ x: w.x, z: w.z }));
     player.sendMessage(`§a[Player Warp] §fMelesat ke tempat §e${w.owner}§f...`);
-    
-    // Efek transisi teleport biasa
     try { player.addEffect("blindness", 30, { amplifier: 1, showParticles: false }); } catch(e){}
     
     system.runTimeout(() => {
         try {
-            player.teleport(
-                { x: w.x, y: w.y, z: w.z },
-                { dimension: world.getDimension(w.dim) }
-            );
+            player.teleport({ x: w.x, y: w.y, z: w.z }, { dimension: world.getDimension(w.dim) });
             player.playSound("mob.endermen.portal", { volume: 1.0, pitch: 1.0 });
         } catch(e) {
             player.sendMessage("§c[Warp] Gagal teleport! Dimensi atau koordinat mungkin rusak.");
@@ -282,48 +242,101 @@ function executePwarpTeleport(player, w) {
 }
 
 // ==========================================
-// ADMIN UI: CONFIG LIMIT (DIPANGGIL DARI ui_system.js)
+// ADMIN UI: MANAGE LIST PLAYER WARPS
 // ==========================================
-export function menuAdminPWarpConfig(player) {
-    let config = {};
-    let ranksDb = {};
+export function menuAdminManagePlayerWarps(admin) {
+    const warps = getPWarps();
+    const warpIds = Object.keys(warps);
     
-    try { config = getConfig() || {}; } catch(e) {}
-    try { ranksDb = getRanks() || {}; } catch(e) {}
-    
-    if (!config.playerWarp) config.playerWarp = { defaultLimit: 1, rankLimits: {} };
-    
-    const rankIds = Object.keys(ranksDb);
-    const dropRanks = rankIds.length > 0 ? rankIds : ["none"];
-    
-    const form = new ModalFormData()
-        .title("Player Warp Limits")
-        .textField("Limit Default (Untuk Member Biasa):", "Angka...", { defaultValue: String(config.playerWarp.defaultLimit) })
-        .dropdown("Pilih Rank Khusus (Misal: VIP):", dropRanks, { defaultValueIndex: 0 })
-        .textField("Limit Khusus Untuk Rank Tersebut:\n§8(Isi 0 untuk menghapus limit khususnya)", "Angka...", { defaultValue: "" });
+    // Cari semua nama owner yang unik (tidak dobel)
+    const owners = [...new Set(warpIds.map(id => warps[id].owner))];
 
-    form.show(player).then(res => {
-        if (res.canceled) {
-            player.sendMessage("§eMenu config ditutup.");
+    const form = new ActionFormData()
+        .title("§l§dMANAGE P-WARPS")
+        .body(`Total Player dengan Warp: §e${owners.length}§r\nPilih Player untuk melihat dan mengelola warp mereka:`);
+
+    if (owners.length === 0) {
+        form.button("§cBelum ada player yang membuat warp", "textures/ui/cancel");
+    } else {
+        for (const owner of owners) {
+            const ownerWarpsCount = warpIds.filter(id => warps[id].owner === owner).length;
+            form.button(`§l${owner}\n§r§8Total Warp: ${ownerWarpsCount}`, "textures/ui/icon_steve");
+        }
+    }
+    form.button("Kembali", "textures/ui/cancel");
+
+    form.show(admin).then(res => {
+        if (res.canceled) return;
+        if (owners.length === 0 || res.selection === owners.length) {
+            import("../../ui_system.js").then(m => m.openAdminMenu(admin));
             return;
         }
-        
-        config.playerWarp.defaultLimit = parseInt(res.formValues[0]) || 1;
-        
-        const selectedRank = dropRanks[res.formValues[1]];
-        const customLimit = parseInt(res.formValues[2]);
-        
-        if (selectedRank && selectedRank !== "none") {
-            if (!isNaN(customLimit) && customLimit > 0) {
-                config.playerWarp.rankLimits[selectedRank] = customLimit;
-                player.sendMessage(`§a[Admin] Rank ${selectedRank} sekarang bisa buat ${customLimit} Warps!`);
-            } else if (customLimit === 0) {
-                delete config.playerWarp.rankLimits[selectedRank];
-                player.sendMessage(`§e[Admin] Limit khusus rank ${selectedRank} dihapus.`);
-            }
+        menuAdminPlayerWarpList(admin, owners[res.selection]);
+    });
+}
+
+function menuAdminPlayerWarpList(admin, targetOwner) {
+    const warps = getPWarps();
+    const warpIds = Object.keys(warps).filter(id => warps[id].owner === targetOwner);
+
+    const form = new ActionFormData()
+        .title(`§l§bWARP: ${targetOwner}`)
+        .body(`Total Warp milik §e${targetOwner}§f: ${warpIds.length}\nPilih warp untuk dikelola:`);
+
+    if (warpIds.length === 0) {
+         form.button("Kembali", "textures/ui/cancel");
+    } else {
+         for (const id of warpIds) {
+            const w = warps[id];
+            form.button(`§l${w.name}\n§r§8${formatDim(w.dim)}`, "textures/ui/world_glyph");
         }
+        form.button("Kembali", "textures/ui/cancel");
+    }
+
+    form.show(admin).then(res => {
+        if (res.canceled || res.selection === warpIds.length || warpIds.length === 0) return menuAdminManagePlayerWarps(admin);
+        menuAdminPlayerWarpAction(admin, warpIds[res.selection]);
+    });
+}
+
+function menuAdminPlayerWarpAction(admin, warpId) {
+    const warps = getPWarps();
+    const w = warps[warpId];
+    if (!w) return admin.sendMessage("§cWarp sudah tidak ada!");
+
+    const priceStr = w.isFree ? "§aGRATIS" : `§e${metricNum(w.price)} ${w.currency === "money" ? "Money" : "XP"}`;
+    
+    const form = new ActionFormData()
+        .title(`§l§cAksi: ${w.name}`)
+        .body(`§eOwner: §f${w.owner}\n§eDimensi: §f${w.dim}\n§eStatus: §f${priceStr}\n§eKordinat: §fX:${w.x} Y:${w.y} Z:${w.z}\n§eDeskripsi: §f"${w.desc}"\n\nPilih aksi admin:`)
+        .button("§l§2Teleport ke Warp\n§r§8Periksa lokasi", "textures/ui/send_icon")
+        .button("§l§cHapus Paksa Warp\n§r§8Hapus dari server", "textures/ui/trash_default")
+        .button("Kembali", "textures/ui/cancel");
+
+    form.show(admin).then(res => {
+        if (res.canceled || res.selection === 2) return menuAdminPlayerWarpList(admin, w.owner);
         
-        try { saveConfig(config); } catch(e) { player.sendMessage("§cGagal menyimpan config!"); }
-        player.sendMessage("§a[Admin] Konfigurasi limit Player Warp disimpan!");
+        if (res.selection === 0) {
+            admin.teleport({ x: w.x, y: w.y, z: w.z }, { dimension: world.getDimension(w.dim) });
+            admin.addTag("loadchunck`" + JSON.stringify({ x: w.x, z: w.z }));
+            admin.sendMessage(`§a[Admin] Teleportasi ke warp §e${w.name}§a milik §b${w.owner}§a...`);
+        } 
+        else if (res.selection === 1) {
+            const confirmForm = new ActionFormData()
+                .title("§l§cHAPUS WARP?")
+                .body(`Yakin ingin MENGHAPUS PAKSA warp §e${w.name}§r milik §b${w.owner}§r?`)
+                .button("§l§cHAPUS PAKSA", "textures/ui/trash_default")
+                .button("BATAL", "textures/ui/cancel");
+                
+            confirmForm.show(admin).then(cRes => {
+                if (cRes.canceled || cRes.selection === 1) return menuAdminPlayerWarpAction(admin, warpId);
+                
+                const db = getPWarps();
+                delete db[warpId];
+                savePWarps(db);
+                admin.sendMessage(`§a[Admin] Warp ${w.name} milik ${w.owner} berhasil dihapus.`);
+                menuAdminPlayerWarpList(admin, w.owner);
+            });
+        }
     });
 }

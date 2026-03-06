@@ -178,34 +178,6 @@ export function handleChat(event) {
 // ==========================================
 // SISTEM UI MANAGE RANKS (ADMIN)
 // ==========================================
-// ==========================================
-// SISTEM UI MANAGE RANKS (ADMIN)
-// ==========================================
-export function manageRankSettings(player, rankID) {
-    const ranks = getRanks();
-    const rankData = ranks[rankID];
-
-    const form = new ModalFormData()
-        .title(`Edit Detail Rank: ${rankID}`)
-        // [PERBAIKAN DI SINI] - Membungkus nilai default ke dalam object { defaultValue: ... }
-        .textField("Prefix Rank:", "Contoh: §7Member", { defaultValue: rankData.prefix || "" })
-        .textField("Batas Maksimal Claim Block:\n§8(Ketik -1 untuk Unlimited)", "Contoh: 1000 atau -1", { defaultValue: String(rankData.claimLimit !== undefined ? rankData.claimLimit : 1000) });
-
-    forceShow(player, form, res => {
-        if (res.canceled) return;
-        const newPrefix = res.formValues[0];
-        const newLimit = parseInt(res.formValues[1]);
-
-        if (isNaN(newLimit)) return player.sendMessage("§cLimit block harus berupa angka!");
-
-        ranks[rankID].prefix = newPrefix;
-        ranks[rankID].claimLimit = newLimit;
-        saveRanks(ranks);
-        
-        const limitText = newLimit === -1 ? "§dUnlimited" : `${newLimit} Blocks`;
-        player.sendMessage(`§a[Admin] Rank ${rankID} berhasil diupdate! Limit Claim: ${limitText}.`);
-    });
-}
 
 export function manageRankCmds(player, rankID) {
     const ranks = getRanks();
@@ -216,8 +188,8 @@ export function manageRankCmds(player, rankID) {
     const form = new ActionFormData()
         .title(`MANAGE COMMAND: ${rankID}`)
         .body(`Total Command: ${cmdKeys.length}\nKlik command untuk edit atau hapus.`)
-        .button("§lTambah Command Baru", "textures/ui/color_plus")
-        .button("§9Edit Detail Rank & Limit", "textures/ui/pencil_edit_icon"); 
+        .button("§lTambah Command Baru", "textures/ui/color_plus"); 
+        // TOMBOL MENU GANDA TELAH DIHAPUS DARI SINI
 
     cmdKeys.forEach(cmdName => {
         form.button(`§l+${cmdName}\n§r§8Run: ${rankData.commands[cmdName].command || rankData.commands[cmdName].ability}`, "textures/items/command_block");
@@ -226,8 +198,7 @@ export function manageRankCmds(player, rankID) {
     forceShow(player, form, res => {
         if (res.canceled) return;
         if (res.selection === 0) addRankCmdMenu(player, rankID);
-        else if (res.selection === 1) manageRankSettings(player, rankID);
-        else editDeleteRankCmdMenu(player, rankID, cmdKeys[res.selection - 2]);
+        else editDeleteRankCmdMenu(player, rankID, cmdKeys[res.selection - 1]); // Index mundur 1 karena tombol dihapus
     });
 }
 
