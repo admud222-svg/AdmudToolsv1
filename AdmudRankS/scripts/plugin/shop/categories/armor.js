@@ -1,36 +1,27 @@
 import { world, system } from "@minecraft/server";
 import { ActionFormData, ModalFormData } from "@minecraft/server-ui";
 
-// ==========================================
-// IMPORT KATEGORI (HANYA SATU KATA 'categories')
-// ==========================================
+// IMPORT KATEGORI
 import { blockCategory } from "./categories/block.js";
 import { kacaCategory } from "./categories/kaca.js";
-import { dekorasiCategory } from "./categories/dekorasi.js";
 import { makananCategory } from "./categories/makanan.js";
+import { dekorasiCategory } from "./categories/dekorasi.js";
 import { toolsCategory } from "./categories/tools.js";
-import { armorCategory } from "./categories/armor.js";
-import { tanamanCategory } from "./categories/tanaman.js";
-import { benihCategory } from "./categories/benih.js";
-import { miscCategory } from "./categories/misc.js";
-import { oresCategory } from "./categories/ores.js";
-import { panenCategory } from "./categories/panen.js";
+import { armorCategory } from "./categories/armor.js"; // ERROR DISINI SUDAH FIX
 
+// GABUNGKAN DATA SHOP
 const SHOP_DATA = {
     "block": blockCategory,
     "kaca": kacaCategory,
-    "dekorasi": dekorasiCategory,
     "makanan": makananCategory,
+    "dekorasi": dekorasiCategory,
     "tools": toolsCategory,
-    "armor": armorCategory,
-    "tanaman": tanamanCategory,
-    "benih": benihCategory,
-    "misc": miscCategory,
-    "ores": oresCategory,
-    "panen": panenCategory
+    "armor": armorCategory
 };
 
-// --- LOGIKA EKONOMI & STOK ---
+// ==========================================
+// UTILS: ECONOMY & INVENTORY
+// ==========================================
 function getMoney(player) {
     try {
         const obj = world.scoreboard.getObjective("money");
@@ -64,6 +55,9 @@ function getPlayerItemCount(player, itemId) {
     return count;
 }
 
+// ==========================================
+// UTILS: SYSTEM STOK & AUTO-RESTOCK
+// ==========================================
 function getStock(itemId, stockMax) {
     const raw = world.getDynamicProperty("stock_" + itemId);
     return typeof raw === "number" ? raw : stockMax; 
@@ -89,6 +83,7 @@ let isRestockStarted = false;
 function startAutoRestock() {
     if (isRestockStarted) return;
     isRestockStarted = true;
+
     for (const catKey in SHOP_DATA) {
         for (const item of SHOP_DATA[catKey].items) {
             if (!item.restockAmount || !item.restockIntervalMinutes) continue;
@@ -105,7 +100,9 @@ function startAutoRestock() {
 }
 system.runTimeout(() => { startAutoRestock(); }, 40);
 
-// --- UI SYSTEM ---
+// ==========================================
+// SISTEM UI SHOP
+// ==========================================
 export function openShopMenu(player) {
     const form = new ActionFormData()
         .title("§l§eSERVER SHOP§t§t§1")
