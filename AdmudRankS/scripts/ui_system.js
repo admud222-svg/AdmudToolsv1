@@ -5,8 +5,7 @@ import { getConfig, saveConfig, DEFAULT_CONFIG } from "./config.js";
 import { world, system } from "@minecraft/server";
 import { getClans, saveClans } from "./plugin/clans/clan_db.js";
 import { fetchAllLandData, saveAllLandData } from "./plugin/land/claimland.js";
-
-// IMPORT SISTEM WARP BARU
+import { menuAdminPWarpConfig } from "./plugin/playerwarp/playerwarp.js";
 import { menuAdminWarpSet, openServerWarpsUI } from "./plugin/warps/warp.js";
 
 const ANIM_TYPES = ["none", "rgb", "wave", "shiny", "typing", "fadein"];
@@ -314,7 +313,7 @@ function menuEditKitInfo(player, kitID, isNew) {
 }
 
 // ==========================================
-// ADMIN: RANK MANAGER
+// ADMIN: RANK MANAGER (SEKARANG ADA SETTING LAND!)
 // ==========================================
 function menuManageRanks(player) {
     const ranks = getRanks();
@@ -331,7 +330,7 @@ function menuManageRanks(player) {
             const selectedRank = list[res.selection];
             const subForm = new ActionFormData()
                 .title(`Manage ${selectedRank}§t§t§1`)
-                .button("Edit Info Rank\n§8(Prefix, Harga)")
+                .button("Edit Info & Limit Rank\n§8(Prefix, Harga, Claim Land)")
                 .button("Manage +cmd\n§8(Custom Commands)")
                 .button("§cHapus Rank\n§8(Delete Permanen)"); 
 
@@ -368,21 +367,31 @@ function menuDeleteRank(player, rankID) {
 
 function menuEditRank(player, rankID, isNew) {
     const ranks = getRanks();
-    const data = isNew ? { prefix: "", priority: 0, price: 0, commands: {} } : ranks[rankID];
+    const data = isNew ? { prefix: "", priority: 0, price: 0, landMode: "count", landLimit: 3, commands: {} } : ranks[rankID];
     
     const form = new ModalFormData()
         .title(isNew ? "Create Rank" : `Edit ${rankID}`)
         .textField("Rank ID (Huruf kecil semua)", "ex: mvp", { defaultValue: isNew ? "" : rankID })
-        .textField("Prefix", "§b[MVP]", { defaultValue: String(data.prefix) })
-        .textField("Priority (0 terendah)", "ex: 2", { defaultValue: String(data.priority) })
-        .textField("Price ($)", "ex: 10000", { defaultValue: String(data.price) });
+        .textField("Prefix", "§b[MVP]", { defaultValue: String(data.prefix || "") })
+        .textField("Priority (0 terendah)", "ex: 2", { defaultValue: String(data.priority || 0) })
+        .textField("Price ($)", "ex: 10000", { defaultValue: String(data.price || 0) })
+        // PENAMBAHAN FITUR LAND LIMIT DI DALAM RANK
+        .toggle("Mode Claim Land Rank Ini\n§8(Kiri = Batas Area | Kanan = Batas Block)", { defaultValue: data.landMode === "block" })
+        .textField("Limit Claim Land\n§8(Jumlah Area/Block sesuai mode di atas)", "ex: 3", { defaultValue: String(data.landLimit || 3) });
 
     forceShow(player, form, res => {
         if (res.canceled) return menuManageRanks(player);
         let newID = isNew ? res.formValues[0].toLowerCase() : rankID;
-        ranks[newID] = { prefix: res.formValues[1], priority: parseInt(res.formValues[2]) || 0, price: parseInt(res.formValues[3]) || 0, commands: data.commands };
+        ranks[newID] = { 
+            prefix: res.formValues[1], 
+            priority: parseInt(res.formValues[2]) || 0, 
+            price: parseInt(res.formValues[3]) || 0, 
+            landMode: res.formValues[4] ? "block" : "count",
+            landLimit: parseInt(res.formValues[5]) || 3,
+            commands: data.commands || {}
+        };
         saveRanks(ranks);
-        player.sendMessage(`§aRank ${newID} berhasil disimpan!`);
+        player.sendMessage(`§aRank ${newID} berhasil disimpan! Rank ini menggunakan limit claim: ${ranks[newID].landLimit} ${ranks[newID].landMode}`);
     });
 }
 
@@ -624,7 +633,7 @@ function menuSelectNPCSkin(player, logicEntityID, npcName) {
 }
 
 // ==========================================
-// ADMIN: MEMBER, CLAN, RTP & LAND
+// ADMIN: MEMBER, CLAN, RTP, LAND, PWARPS
 // ==========================================
 function menuMemberSet(player) {
     const form = new ActionFormData()
@@ -632,16 +641,18 @@ function menuMemberSet(player) {
         .body("Pilih kategori pengaturan:")
         .button("§lClan Setting\n§r§8Atur Harga & Hapus Clan", "textures/ui/icon_multiplayer")
         .button("§lRTP Setting\n§r§8Atur Limit & Radius RTP", "textures/ui/icon_map")
-        .button("§lLand Setting\n§r§8Manage Land & Limit Claim", "textures/ui/village_hero_effect")
+        .button("§lLand Setting\n§r§8Manage Land & Harga Server", "textures/ui/village_hero_effect")
+        .button("§lPlayer Warp Limit\n§r§8Atur Limit Pembuatan Pwarp", "textures/items/ender_pearl")
         .button("§lToggles Menu\n§r§8Aktif/Matikan Fitur Server", "textures/ui/settings_glyph_color_2x")
         .button("§cKembali", "textures/ui/cancel");
 
     forceShow(player, form, res => {
-        if (res.canceled || res.selection === 4) return openAdminMenu(player);
+        if (res.canceled || res.selection === 5) return openAdminMenu(player);
         if (res.selection === 0) menuAdminClanCategory(player);
         if (res.selection === 1) menuAdminRtpCategory(player);
         if (res.selection === 2) menuAdminLandCategory(player);
-        if (res.selection === 3) menuToggleMenu(player);
+        if (res.selection === 3) menuAdminPWarpConfig(player); 
+        if (res.selection === 4) menuToggleMenu(player);
     });
 }
 
@@ -804,22 +815,20 @@ function menuAdminDeleteClan(player, clanName) {
 }
 
 // ==========================================
-// ADMIN: LAND MANAGER (FIXED FORMAT API)
+// ADMIN: LAND MANAGER 
 // ==========================================
 function menuAdminLandCategory(player) {
     const form = new ActionFormData()
         .title("§lLAND SETTING")
-        .body("Pengaturan sistem Claim Land Server:")
+        .body("Pengaturan sistem Claim Land Server:\n(Limit & Mode Claim sekarang diatur di Menu Manage Rank!)")
         .button("Manage Member Lands\n§8Teleport & Hapus Land", "textures/ui/icon_map")
-        .button("Land Limit Config\n§8Atur Mode, Limit & Harga", "textures/ui/icon_setting")
-        .button("Limit Per-Rank\n§8Atur Limit Khusus Rank VIP", "textures/ui/permissions_op_crown")
+        .button("Land Global Config\n§8Atur Harga Jual/Beli Block", "textures/ui/icon_setting")
         .button("§cKembali", "textures/ui/cancel");
 
     forceShow(player, form, res => {
-        if (res.canceled || res.selection === 3) return menuMemberSet(player);
+        if (res.canceled || res.selection === 2) return menuMemberSet(player);
         if (res.selection === 0) menuAdminManageLands(player);
         if (res.selection === 1) menuAdminLandConfig(player);
-        if (res.selection === 2) menuAdminLandRankLimits(player);
     });
 }
 
@@ -894,55 +903,16 @@ function menuAdminLandAction(player, landId) {
 
 function menuAdminLandConfig(player) {
     const config = getConfig();
-    if (!config.land) config.land = { mode: "count", defaultLimit: 3, price: 5000 };
-    const isBlockMode = config.land.mode === "block";
+    if (!config.land) config.land = { price: 5000 };
 
     const form = new ModalFormData()
-        .title("Land System Config")
-        .toggle("Mode Claim\n§8(Kiri = Batas Jumlah Land | Kanan = Batas Total Block)§r", { defaultValue: isBlockMode })
-        .textField(`Limit Default (Member Biasa)\n§8Saat ini: ${config.land.defaultLimit}`, "Ketik angka batas limit...", { defaultValue: String(config.land.defaultLimit) })
-        .textField(`Harga Claim\n§8(Per 1 Land ATAU Per 1 Block sesuai mode)`, "Ketik harga...", { defaultValue: String(config.land.price) });
+        .title("Land Global Config")
+        .textField(`Harga Claim Server\n§8(Biaya per Area ATAU per Block, menyesuaikan Mode dari tiap Rank)`, "Ketik harga...", { defaultValue: String(config.land.price) });
 
     forceShow(player, form, res => {
         if (res.canceled) return menuAdminLandCategory(player);
-        config.land.mode = res.formValues[0] ? "block" : "count";
-        config.land.defaultLimit = parseInt(res.formValues[1]) || 3;
-        config.land.price = parseInt(res.formValues[2]) || 5000;
+        config.land.price = parseInt(res.formValues[0]) || 5000;
         saveConfig(config);
-        
-        const modeName = config.land.mode === "block" ? "Batas Block" : "Batas Jumlah Land";
-        player.sendMessage(`§a[Admin] Konfigurasi tersimpan! Mode: §e${modeName}§a.`);
-    });
-}
-
-function menuAdminLandRankLimits(player) {
-    const ranks = getRanks();
-    const rankIds = Object.keys(ranks);
-    
-    if (rankIds.length === 0) return player.sendMessage("§cBelum ada rank yang dibuat.");
-
-    const config = getConfig();
-    if (!config.land) config.land = { mode: "count", defaultLimit: 3, price: 5000, rankLimits: {} };
-    if (!config.land.rankLimits) config.land.rankLimits = {};
-
-    const form = new ModalFormData()
-        .title("Set Limit Khusus Rank")
-        .dropdown("Pilih Rank:", rankIds, { defaultValueIndex: 0 })
-        .textField("Masukkan Limit Baru Untuk Rank Ini\n§8(Isi 0 jika ingin menghapus & mengikuti Limit Default)", "Angka Limit...", { defaultValue: "" });
-
-    forceShow(player, form, res => {
-        if (res.canceled) return menuAdminLandCategory(player);
-        const rankId = rankIds[res.formValues[0]];
-        const limit = parseInt(res.formValues[1]) || 0;
-
-        if (limit > 0) {
-            config.land.rankLimits[rankId] = limit;
-            player.sendMessage(`§a[Admin] Limit claim untuk rank §e${rankId}§a diset menjadi §b${limit}§a!`);
-        } else {
-            delete config.land.rankLimits[rankId];
-            player.sendMessage(`§e[Admin] Limit khusus rank §e${rankId}§e dihapus.`);
-        }
-        
-        saveConfig(config);
+        player.sendMessage(`§a[Admin] Harga Claim Global tersimpan: $${config.land.price}`);
     });
 }

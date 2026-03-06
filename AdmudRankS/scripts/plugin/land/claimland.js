@@ -2,19 +2,11 @@
  * CLAN LAND PROTECTION SYSTEM (ADMUD RANK SYSTEM)
  * VERSION: 2.6.0-BETA (MCPE 2026 ENGINE) - [FIX V3 APPLIED]
  * ============================================================
- * DEVELOPED BY: Gemini AI for AdmudCraft
- * TOTAL FEATURES: Claim, Manage, Trust, Shop, Inbox, Protection
- * NOTIFICATION: Chat Box Achievement Style (No Title Clash)
- * UI: Paperdoll Chat Support Auto-Refresh & Unlimited Limit
- * ANTI-OVERLAP: Mencegah pemain mengklaim area yang bertabrakan
- * NEW FIX: Forcefield Radar, Admin Bypass, & Dynamic Config Limit
- * BUGFIX: Restored 'getPlayerTotalClaimedBlocks' for main.js
- * ============================================================
  */
 
 import { world, system } from "@minecraft/server";
 import { ActionFormData, ModalFormData, MessageFormData } from "@minecraft/server-ui";
-import { getPlayerRank } from "../ranks/rank.js";
+import { getPlayerRank, getRanks } from "../ranks/rank.js";
 import { getConfig } from "../../config.js";
 
 // ==========================================
@@ -60,14 +52,10 @@ function getSafeClans() {
     } catch(e) { return {}; }
 }
 
-// Menghitung total volume Block
 function getLandVolume(min, max) {
     return Math.abs(max.x - min.x + 1) * Math.abs(max.y - min.y + 1) * Math.abs(max.z - min.z + 1);
 }
 
-// ==========================================
-// FIX: FUNGSI YANG DIBUTUHKAN OLEH main.js
-// ==========================================
 export function getPlayerTotalClaimedBlocks(playerName) {
     const db = fetchAllLandData();
     let total = 0;
@@ -79,14 +67,12 @@ export function getPlayerTotalClaimedBlocks(playerName) {
     return total;
 }
 
-// Mengecek apakah 2 area (bounding box) saling bertabrakan
 function checkOverlap(minA, maxA, minB, maxB) {
     return (minA.x <= maxB.x && maxA.x >= minB.x) &&
            (minA.y <= maxB.y && maxA.y >= minB.y) &&
            (minA.z <= maxB.z && maxA.z >= minB.z);
 }
 
-// FORMATTER ANGKA METRIC KHUSUS SHOP
 function toMetric(num) {
     if (num >= 1000000000) return (num / 1000000000).toFixed(1).replace(/\.0$/, '') + "B";
     if (num >= 1000000) return (num / 1000000).toFixed(1).replace(/\.0$/, '') + "M";
@@ -95,16 +81,22 @@ function toMetric(num) {
 }
 
 // ==========================================
-// [2] CEK KELAYAKAN & LIMIT (CONFIG ADMIN)
+// [2] CEK KELAYAKAN & LIMIT (TERHUBUNG KE RANK)
 // ==========================================
 
 export function checkClaimEligibility(player, blocksToClaim) {
     const config = getConfig();
     const db = fetchAllLandData();
-    const landSet = config.land || { mode: "count", defaultLimit: 3, price: 5000, rankLimits: {} };
+    const globalLandPrice = config.land?.price || 5000;
     
-    const pRank = getPlayerRank(player).id;
-    const maxLimit = (landSet.rankLimits && landSet.rankLimits[pRank] !== undefined) ? landSet.rankLimits[pRank] : landSet.defaultLimit;
+    // Ambil Data Rank Milik Player
+    const ranksDb = getRanks();
+    const pRankId = getPlayerRank(player).id;
+    const rankData = ranksDb[pRankId] || {};
+
+    // Mode dan Limit sekarang dikontrol langsung oleh Rank
+    const mode = rankData.landMode || "count"; 
+    const maxLimit = rankData.landLimit || 3;
 
     let currentOwnedLands = 0;
     let currentOwnedBlocks = 0;
@@ -118,16 +110,16 @@ export function checkClaimEligibility(player, blocksToClaim) {
         }
     }
 
-    if (landSet.mode === "block") {
+    if (mode === "block") {
         if ((currentOwnedBlocks + blocksToClaim) > maxLimit) {
-            return { allowed: false, price: 0, reason: `Melebihi Limit Block!\n§7Batasmu: §e${maxLimit} block §7| Terpakai: §c${currentOwnedBlocks}` };
+            return { allowed: false, price: 0, reason: `Melebihi Limit Block Rankmu!\n§7Batas Rank §e${pRankId.toUpperCase()}§7: §e${maxLimit} block §7| Terpakai: §c${currentOwnedBlocks}` };
         }
-        return { allowed: true, price: landSet.price * blocksToClaim, reason: "" };
+        return { allowed: true, price: globalLandPrice * blocksToClaim, reason: "" };
     } else {
         if (currentOwnedLands >= maxLimit) {
-            return { allowed: false, price: 0, reason: `Melebihi Limit Land!\n§7Maksimal hanya boleh memiliki §e${maxLimit} §7Area Land.` };
+            return { allowed: false, price: 0, reason: `Melebihi Limit Land Rankmu!\n§7Maksimal Rank §e${pRankId.toUpperCase()}§7 hanya boleh memiliki §e${maxLimit} §7Area Land.` };
         }
-        return { allowed: true, price: landSet.price, reason: "" };
+        return { allowed: true, price: globalLandPrice, reason: "" };
     }
 }
 
@@ -277,9 +269,10 @@ function menuManageList(player) {
         form.body("Kamu belum memiliki lahan terdaftar.");
         form.button("Kembali");
     } else {
-        const config = getConfig();
-        const modeStatus = config?.land?.mode === "block" ? "Mode Block Terbatas" : "Mode Area Terbatas";
-        form.body(`§eStatus Claim: §f${modeStatus}\nPilih lahan yang ingin kamu kelola:`);
+        const pRankId = getPlayerRank(player).id;
+        const ranksDb = getRanks();
+        const modeStatus = ranksDb[pRankId]?.landMode === "block" ? "Mode Block Terbatas" : "Mode Area Terbatas";
+        form.body(`§eStatus Claim Rankmu: §f${modeStatus}\nPilih lahan yang ingin kamu kelola:`);
         myLands.forEach(l => {
             const saleText = l.isForSale ? "§e[DIPASARKAN]" : "§a[AKTIF]";
             form.button(`§l${l.name}\n§r${saleText} §7- ${l.dim.replace("minecraft:", "")}`);
