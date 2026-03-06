@@ -1,13 +1,13 @@
 import { world, system } from "@minecraft/server";
-import { getPlayerRank, getRankClaimLimit } from "./plugin/ranks/rank.js";
-import { getPlayerTotalClaimedBlocks } from "./plugin/land/claimland.js"; // Import data claim
+import { getPlayerRank } from "./plugin/ranks/rank.js";
+import { getPlayerTotalClaimedBlocks, fetchAllLandData } from "./plugin/land/claimland.js"; // Import database land
+import { getConfig } from "./config.js"; // Import config untuk cek mode
 
 // =========================================
 // AUTO-CREATE SCOREBOARD OBJECTIVES
 // =========================================
 const REQUIRED_SCOREBOARDS = ["money", "coin", "shards", "kills", "deaths"];
 
-// Sistem akan mengecek dan membuat scoreboard secara otomatis saat server menyala
 system.run(() => {
     for (const obj of REQUIRED_SCOREBOARDS) {
         try {
@@ -34,7 +34,6 @@ function getScore(player, objectiveId) {
 // =========================================
 // METRIC NUMBER FORMATTER (1K, 1M, 1B)
 // =========================================
-// Formatter standard untuk Uang/Kills dll (Ribuan langsung jadi 1K)
 function formatMetric(num) {
     if (num >= 1000000000) return (num / 1000000000).toFixed(1).replace(/\.0$/, '') + "B";
     if (num >= 1000000) return (num / 1000000).toFixed(1).replace(/\.0$/, '') + "M";
@@ -46,19 +45,36 @@ function formatMetric(num) {
 // METRIC KHUSUS CLAIM LIMIT (>= 10,000 BARU JADI 10K)
 // =========================================
 function formatClaimMetric(num) {
-    // Jika bentuknya lambang unlimited, biarkan saja
     if (num === "∞") return num; 
     
     let val = Number(num);
-    if (isNaN(val)) return num; // Jika error baca number, kembalikan normal
+    if (isNaN(val)) return num; 
     
     if (val >= 1000000000) return (val / 1000000000).toFixed(1).replace(/\.0$/, '') + "B";
     if (val >= 1000000) return (val / 1000000).toFixed(1).replace(/\.0$/, '') + "M";
-    // SYARAT: Jika angkanya 10.000 ke atas, baru dikasih "K"
     if (val >= 10000) return (val / 1000).toFixed(1).replace(/\.0$/, '') + "K";
     
-    // Kalau di bawah 10.000 (contoh: 2000, 5000) tetap angka utuh
     return val.toString(); 
+}
+
+// =========================================
+// FUNGSI DETEKSI PLAYER DI AREA LAND
+// =========================================
+function getCurrentLandOwner(player) {
+    const db = fetchAllLandData();
+    const loc = player.location;
+    const dim = player.dimension.id;
+    
+    for (const id in db) {
+        const l = db[id];
+        // Cek apakah pemain berada di dimensi yang sama dan masuk ke dalam kotak area
+        if (dim === l.dim && 
+            loc.x >= l.min.x && loc.x <= l.max.x && 
+            loc.z >= l.min.z && loc.z <= l.max.z) {
+            return l.owner; // Kembalikan nama pemilik jika masuk radar
+        }
+    }
+    return "§7Unclaimed"; // Kembalikan 'Unclaimed' jika sedang di alam liar
 }
 
 // =========================================
@@ -70,7 +86,6 @@ let currentFakePing = 25;
 let pingUpdateCounter = 0;
 
 system.runInterval(() => {
-    // 1. Kalkulasi Real TPS
     const now = Date.now();
     const diff = now - lastTickTime; 
     let calcTps = (20 / diff) * 1000;
@@ -79,7 +94,6 @@ system.runInterval(() => {
     realTPS = calcTps.toFixed(1);
     lastTickTime = now;
 
-    // 2. Kalkulasi Fake Ping yang Kalem
     pingUpdateCounter++;
     if (pingUpdateCounter >= 3) {
         currentFakePing = Math.floor(Math.random() * (45 - 20 + 1)) + 20;
@@ -139,28 +153,41 @@ export function resolvePlaceholders(textObj, player, isChatMsg = "") {
     const hp = player.getComponent("minecraft:health")?.currentValue || 20;
     const date = new Date();
 
-    // Data Claim Land
-    const claimedBlocks = getPlayerTotalClaimedBlocks(player.name);
-    const claimLimit = getRankClaimLimit(player);
-    const limitDisplay = claimLimit === -1 ? "∞" : claimLimit; // Ubah -1 jadi lambang infinity
+    // === LOGIKA CLAIM LAND (Membaca Mode dari Config) ===
+    const config = getConfig();
+    const landSet = config.land || { mode: "count", defaultLimit: 3, rankLimits: {} };
+    const pRank = rank.id; 
+    
+    let claimLimit = (landSet.rankLimits && landSet.rankLimits[pRank] !== undefined) ? landSet.rankLimits[pRank] : landSet.defaultLimit;
+    let currentClaim = 0;
+
+    if (landSet.mode === "block") {
+        currentClaim = getPlayerTotalClaimedBlocks(player.name);
+    } else {
+        const db = fetchAllLandData();
+        for (const id in db) {
+            if (db[id].owner === player.name) {
+                currentClaim++;
+            }
+        }
+    }
+
+    const limitDisplay = claimLimit === -1 ? "∞" : claimLimit; 
+    const currentLandOwner = getCurrentLandOwner(player); // Ambil data Land saat ini
 
     let processed = textObj.text
         .replace(/@NAMA/g, player.name)
         .replace(/@RANKS/g, rank.prefix)
         .replace(/@CLAN/g, player.getDynamicProperty("clan") || "§cNone")
         .replace(/@HEALTH/g, Math.round(hp))
-        
-        // MENGAMBIL DARI SCOREBOARD & OTOMATIS JADI METRIC (1.5K, 10M, 1B)
         .replace(/@MONEY/g, formatMetric(getScore(player, "money"))) 
         .replace(/@COIN/g, formatMetric(getScore(player, "coin")))
         .replace(/@SHARDS/g, formatMetric(getScore(player, "shards")))
         .replace(/@KILL/g, formatMetric(getScore(player, "kills")))
         .replace(/@DEATH/g, formatMetric(getScore(player, "deaths")))
-        
-        // CLAIM PLACEHOLDERS BARU MENGGUNAKAN METRIC KHUSUS!
-        .replace(/@CLAIM/g, formatClaimMetric(claimedBlocks))
+        .replace(/@CLAIM/g, formatClaimMetric(currentClaim))
         .replace(/@LIMIT/g, formatClaimMetric(limitDisplay))
-        
+        .replace(/@LAND/g, currentLandOwner) // <=== REPLACE UNTUK @LAND
         .replace(/@TPS/g, realTPS) 
         .replace(/@PING/g, currentFakePing)
         .replace(/@ONLINE/g, world.getPlayers().length)

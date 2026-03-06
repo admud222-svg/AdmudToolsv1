@@ -4,9 +4,10 @@ import { getKits, saveKits, resetKitCooldown } from "./plugin/ranks/rank_kits.js
 import { getConfig, saveConfig, DEFAULT_CONFIG } from "./config.js";
 import { world, system } from "@minecraft/server";
 import { getClans, saveClans } from "./plugin/clans/clan_db.js";
-
-// IMPORT DATABASE LAND (Pastikan claimland.js mengeksport ini)
 import { fetchAllLandData, saveAllLandData } from "./plugin/land/claimland.js";
+
+// IMPORT SISTEM WARP BARU
+import { menuAdminWarpSet, openServerWarpsUI } from "./plugin/warps/warp.js";
 
 const ANIM_TYPES = ["none", "rgb", "wave", "shiny", "typing", "fadein"];
 const PLACEHOLDER_INFO = "§eContekan Placeholder:\n§f@NAMA, @RANKS, @CLAN\n@MONEY, @COIN, @SHARDS\n@KILL, @DEATH, @HEALTH\n@TPS, @PING, @ONLINE, @MAXON\n@TANGGAL, @BULAN, @TAHUN\n@NL (Enter), @BLANK (Spasi)";
@@ -32,7 +33,8 @@ export function openAdminMenu(player) {
         .button("Global Set\n§8(Scoreboard, Chat, Nametag)", "textures/ui/world_glyph")
         .button("Player Ranks\n§8(Beri / Reset Rank)", "textures/ui/permissions_op_crown") 
         .button("Manage NPCs", "textures/ui/dressing_room_skins")
-        .button("Member Set\n§8(Clan, Land, Toggles)", "textures/ui/icon_multiplayer");
+        .button("Member Set\n§8(Clan, Land, Toggles)", "textures/ui/icon_multiplayer")
+        .button("Manage Warps\n§8(Set Server Warps)", "textures/ui/icon_map"); 
 
     forceShow(player, form, res => {
         if (res.canceled) return;
@@ -42,6 +44,7 @@ export function openAdminMenu(player) {
         if (res.selection === 3) menuPlayerRankManager(player); 
         if (res.selection === 4) menuManageNPCs(player);
         if (res.selection === 5) menuMemberSet(player);
+        if (res.selection === 6) menuAdminWarpSet(player); 
     });
 }
 
@@ -71,8 +74,8 @@ function menuSetPlayerRank(player) {
 
     const form = new ModalFormData()
         .title("Set & Beri Rank")
-        .dropdown("Pilih Player Online:", pNames, { defaultValue: 0 })
-        .dropdown("Pilih Rank untuk Diberikan:", ranks, { defaultValue: 0 });
+        .dropdown("Pilih Player Online:", pNames, { defaultValueIndex: 0 })
+        .dropdown("Pilih Rank untuk Diberikan:", ranks, { defaultValueIndex: 0 });
 
     forceShow(player, form, res => {
         if (res.canceled) return menuPlayerRankManager(player);
@@ -101,7 +104,7 @@ function menuResetPlayerRank(player) {
 
     const form = new ModalFormData()
         .title("Reset Rank Player")
-        .dropdown("Pilih Player untuk Di-reset\n§c(Kembali murni jadi Member!):", pNames, { defaultValue: 0 });
+        .dropdown("Pilih Player untuk Di-reset\n§c(Kembali murni jadi Member!):", pNames, { defaultValueIndex: 0 });
 
     forceShow(player, form, res => {
         if (res.canceled) return menuPlayerRankManager(player);
@@ -251,7 +254,7 @@ function menuResetKitCooldown(player, kitID) {
     const pNames = players.map(p => p.name);
     const form = new ModalFormData()
         .title(`Reset CD: ${kitID}`)
-        .dropdown("Pilih player:", pNames);
+        .dropdown("Pilih player:", pNames, { defaultValueIndex: 0 });
 
     forceShow(player, form, res => {
         if (res.canceled) return menuEditKitOptions(player, kitID);
@@ -277,7 +280,7 @@ function menuEditKitInfo(player, kitID, isNew) {
         .title(isNew ? "Buat Info Kit Baru" : `Edit Info Kit: ${kitID}`)
         .textField("Kit ID (Huruf kecil, tanpa spasi)", "contoh: vip_kit", { defaultValue: isNew ? "" : String(kitID) })
         .textField("Nama Kit (Tampil di UI)", "contoh: VIP Kit", { defaultValue: String(data.name) })
-        .dropdown("Pilih Rank Khusus Kit Ini", rankList, { defaultValue: currentRankIdx }) 
+        .dropdown("Pilih Rank Khusus Kit Ini", rankList, { defaultValueIndex: currentRankIdx }) 
         .textField("Waktu Cooldown (Dalam Jam)", "24", { defaultValue: String(data.cooldownHours) })
         .textField("Nama Structure (Opsional)", "nama_struktur", { defaultValue: String(data.structure || "") })
         .textField("Command Tambahan\n§eGunakan garis | untuk misah command.", "say halo | xp 100L @s", { defaultValue: String(cmdStr) });
@@ -481,8 +484,8 @@ function menuAddOrEditLine(player, index) {
 
     const form = new ModalFormData()
         .title(isNew ? "Tambah Line" : `Edit Line ${index + 1}`)
-        .dropdown("Pilih Posisi Baris (Line):", lineOptions, { defaultValue: defaultLinePos })
-        .dropdown(`${PLACEHOLDER_INFO}\n\n§lPilih Animasi Baris Ini:`, ANIM_TYPES, { defaultValue: animIndex })
+        .dropdown("Pilih Posisi Baris (Line):", lineOptions, { defaultValueIndex: defaultLinePos })
+        .dropdown(`${PLACEHOLDER_INFO}\n\n§lPilih Animasi Baris Ini:`, ANIM_TYPES, { defaultValueIndex: animIndex })
         .textField("Teks Scoreboard:", "@MONEY", { defaultValue: String(lineData.text) });
 
     forceShow(player, form, res => {
@@ -509,7 +512,7 @@ function menuEditSingleFormat(player, configKey, title) {
 
     const form = new ModalFormData()
         .title(title)
-        .dropdown(`${PLACEHOLDER_INFO}\n\n§lPilih Animasi:`, ANIM_TYPES, { defaultValue: animIndex })
+        .dropdown(`${PLACEHOLDER_INFO}\n\n§lPilih Animasi:`, ANIM_TYPES, { defaultValueIndex: animIndex })
         .textField("Format Text:", "...", { defaultValue: String(data.text) });
 
     forceShow(player, form, res => {
@@ -669,9 +672,9 @@ function menuAdminRtpCategory(player) {
 
     const form = new ModalFormData()
         .title("§lRTP SETTING")
-        .textField(`Maksimal Limit RTP per Player\n(Saat ini: ${rtpLimit} kali):`, "Ketik angka...")
-        .textField(`Waktu Cooldown Limit (Dalam Menit)\n(Saat ini: ${rtpCooldown} menit):`, "Ketik angka...")
-        .textField(`Radius Area RTP (Max Jarak Acak)\n(Saat ini: ${rtpRadius} block):`, "Ketik angka...");
+        .textField(`Maksimal Limit RTP per Player\n(Saat ini: ${rtpLimit} kali):`, "Ketik angka...", { defaultValue: String(rtpLimit) })
+        .textField(`Waktu Cooldown Limit (Dalam Menit)\n(Saat ini: ${rtpCooldown} menit):`, "Ketik angka...", { defaultValue: String(rtpCooldown) })
+        .textField(`Radius Area RTP (Max Jarak Acak)\n(Saat ini: ${rtpRadius} block):`, "Ketik angka...", { defaultValue: String(rtpRadius) });
 
     forceShow(player, form, res => {
         if (res.canceled) return menuMemberSet(player); 
@@ -738,9 +741,9 @@ function menuMemberConfig(player) {
 
     const form = new ModalFormData()
         .title("MEMBER CONFIG")
-        .textField(`Maks Member Clan (Saat ini: ${currentMaxMem})\nKosongkan jika tidak ingin diubah:`, "Ketik angka...")
-        .textField(`Harga Ganti Nama (Saat ini: $${currentCost})\nKosongkan jika tidak ingin diubah:`, "Ketik angka...")
-        .textField(`Cooldown Rename (Saat ini: ${currentCool} Hari)\nKosongkan jika tidak ingin diubah:`, "Ketik angka...");
+        .textField(`Maks Member Clan (Saat ini: ${currentMaxMem})\nKosongkan jika tidak ingin diubah:`, "Ketik angka...", { defaultValue: String(currentMaxMem) })
+        .textField(`Harga Ganti Nama (Saat ini: $${currentCost})\nKosongkan jika tidak ingin diubah:`, "Ketik angka...", { defaultValue: String(currentCost) })
+        .textField(`Cooldown Rename (Saat ini: ${currentCool} Hari)\nKosongkan jika tidak ingin diubah:`, "Ketik angka...", { defaultValue: String(currentCool) });
 
     forceShow(player, form, res => {
         if (res.canceled) return menuAdminClanCategory(player); 
@@ -801,7 +804,7 @@ function menuAdminDeleteClan(player, clanName) {
 }
 
 // ==========================================
-// ADMIN: LAND MANAGER (BARU)
+// ADMIN: LAND MANAGER (FIXED FORMAT API)
 // ==========================================
 function menuAdminLandCategory(player) {
     const form = new ActionFormData()
@@ -896,9 +899,9 @@ function menuAdminLandConfig(player) {
 
     const form = new ModalFormData()
         .title("Land System Config")
-        .toggle("Mode Claim\n§8(Kiri = Batas Jumlah Land | Kanan = Batas Total Block)§r", isBlockMode)
-        .textField(`Limit Default (Member Biasa)\n§8Saat ini: ${config.land.defaultLimit}`, "Ketik angka batas limit...", String(config.land.defaultLimit))
-        .textField(`Harga Claim\n§8(Per 1 Land ATAU Per 1 Block sesuai mode)`, "Ketik harga...", String(config.land.price));
+        .toggle("Mode Claim\n§8(Kiri = Batas Jumlah Land | Kanan = Batas Total Block)§r", { defaultValue: isBlockMode })
+        .textField(`Limit Default (Member Biasa)\n§8Saat ini: ${config.land.defaultLimit}`, "Ketik angka batas limit...", { defaultValue: String(config.land.defaultLimit) })
+        .textField(`Harga Claim\n§8(Per 1 Land ATAU Per 1 Block sesuai mode)`, "Ketik harga...", { defaultValue: String(config.land.price) });
 
     forceShow(player, form, res => {
         if (res.canceled) return menuAdminLandCategory(player);
@@ -924,8 +927,8 @@ function menuAdminLandRankLimits(player) {
 
     const form = new ModalFormData()
         .title("Set Limit Khusus Rank")
-        .dropdown("Pilih Rank:", rankIds)
-        .textField("Masukkan Limit Baru Untuk Rank Ini\n§8(Isi 0 jika ingin menghapus & mengikuti Limit Default)", "Angka Limit...");
+        .dropdown("Pilih Rank:", rankIds, { defaultValueIndex: 0 })
+        .textField("Masukkan Limit Baru Untuk Rank Ini\n§8(Isi 0 jika ingin menghapus & mengikuti Limit Default)", "Angka Limit...", { defaultValue: "" });
 
     forceShow(player, form, res => {
         if (res.canceled) return menuAdminLandCategory(player);

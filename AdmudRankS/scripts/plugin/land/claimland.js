@@ -1,18 +1,21 @@
 /* ============================================================
  * CLAN LAND PROTECTION SYSTEM (ADMUD RANK SYSTEM)
- * VERSION: 2.6.0-BETA (MCPE 2026 ENGINE)
+ * VERSION: 2.6.0-BETA (MCPE 2026 ENGINE) - [FIX V3 APPLIED]
  * ============================================================
  * DEVELOPED BY: Gemini AI for AdmudCraft
  * TOTAL FEATURES: Claim, Manage, Trust, Shop, Inbox, Protection
  * NOTIFICATION: Chat Box Achievement Style (No Title Clash)
  * UI: Paperdoll Chat Support Auto-Refresh & Unlimited Limit
  * ANTI-OVERLAP: Mencegah pemain mengklaim area yang bertabrakan
+ * NEW FIX: Forcefield Radar, Admin Bypass, & Dynamic Config Limit
+ * BUGFIX: Restored 'getPlayerTotalClaimedBlocks' for main.js
  * ============================================================
  */
 
 import { world, system } from "@minecraft/server";
 import { ActionFormData, ModalFormData, MessageFormData } from "@minecraft/server-ui";
-import { getRankClaimLimit } from "../ranks/rank.js";
+import { getPlayerRank } from "../ranks/rank.js";
+import { getConfig } from "../../config.js";
 
 // ==========================================
 // [1] PENGATURAN DATABASE & CACHE
@@ -21,12 +24,12 @@ import { getRankClaimLimit } from "../ranks/rank.js";
 const tempPositionCache = {}; 
 const playerBacktrackLocation = {}; 
 
-function fetchAllLandData() {
+export function fetchAllLandData() {
     const serializedData = world.getDynamicProperty("landDB");
     return serializedData ? JSON.parse(serializedData) : {};
 }
 
-function commitLandData(dataObject) {
+export function saveAllLandData(dataObject) {
     world.setDynamicProperty("landDB", JSON.stringify(dataObject));
 }
 
@@ -62,7 +65,9 @@ function getLandVolume(min, max) {
     return Math.abs(max.x - min.x + 1) * Math.abs(max.y - min.y + 1) * Math.abs(max.z - min.z + 1);
 }
 
-// Mendapatkan total blok yang sudah diklaim pemain
+// ==========================================
+// FIX: FUNGSI YANG DIBUTUHKAN OLEH main.js
+// ==========================================
 export function getPlayerTotalClaimedBlocks(playerName) {
     const db = fetchAllLandData();
     let total = 0;
@@ -90,7 +95,44 @@ function toMetric(num) {
 }
 
 // ==========================================
-// [2] MENU UTAMA (MAIN HUB)
+// [2] CEK KELAYAKAN & LIMIT (CONFIG ADMIN)
+// ==========================================
+
+export function checkClaimEligibility(player, blocksToClaim) {
+    const config = getConfig();
+    const db = fetchAllLandData();
+    const landSet = config.land || { mode: "count", defaultLimit: 3, price: 5000, rankLimits: {} };
+    
+    const pRank = getPlayerRank(player).id;
+    const maxLimit = (landSet.rankLimits && landSet.rankLimits[pRank] !== undefined) ? landSet.rankLimits[pRank] : landSet.defaultLimit;
+
+    let currentOwnedLands = 0;
+    let currentOwnedBlocks = 0;
+    
+    for (const id in db) {
+        if (db[id].owner === player.name) {
+            currentOwnedLands++;
+            const sizeX = Math.abs(db[id].max.x - db[id].min.x) + 1;
+            const sizeZ = Math.abs(db[id].max.z - db[id].min.z) + 1;
+            currentOwnedBlocks += (sizeX * sizeZ);
+        }
+    }
+
+    if (landSet.mode === "block") {
+        if ((currentOwnedBlocks + blocksToClaim) > maxLimit) {
+            return { allowed: false, price: 0, reason: `Melebihi Limit Block!\n§7Batasmu: §e${maxLimit} block §7| Terpakai: §c${currentOwnedBlocks}` };
+        }
+        return { allowed: true, price: landSet.price * blocksToClaim, reason: "" };
+    } else {
+        if (currentOwnedLands >= maxLimit) {
+            return { allowed: false, price: 0, reason: `Melebihi Limit Land!\n§7Maksimal hanya boleh memiliki §e${maxLimit} §7Area Land.` };
+        }
+        return { allowed: true, price: landSet.price, reason: "" };
+    }
+}
+
+// ==========================================
+// [3] MENU UTAMA (MAIN HUB)
 // ==========================================
 
 export function openClaimMenu(player) {
@@ -112,12 +154,12 @@ export function openClaimMenu(player) {
     const hubForm = new ActionFormData()
         .title("§l§aCLAIM LAND")
         .body(`§7Atur wilayah kekuasaanmu di sini.\n\n§fStatus Kordinat:\n§8- Pojok 1: ${statusPos1}\n§8- Pojok 2: ${statusPos2}`)
-        .button("Set Posisi 1\n§8Gunakan lokasi saat ini", "textures/items/wooden_axe") // Index 0
-        .button("§2Claim Land\n§8Daftarkan kordinat", "textures/items/emerald")       // Index 1
-        .button("Set Posisi 2\n§8Gunakan lokasi saat ini", "textures/items/wooden_axe") // Index 2
-        .button("Manage Land\n§8Lahan Milikmu", "textures/ui/icon_setting")             // Index 3
-        .button("Land Shop\n§8Pasar Properti", "textures/ui/trade_icon")                // Index 4
-        .button(`Land Contact\n§8Pesan Masuk: ${unreadCount > 0 ? "§c" + unreadCount : "§70"}`, "textures/ui/message"); // Index 5
+        .button("Set Posisi 1\n§8Gunakan lokasi saat ini", "textures/items/wooden_axe") 
+        .button("§2Claim Land\n§8Daftarkan kordinat", "textures/items/emerald")       
+        .button("Set Posisi 2\n§8Gunakan lokasi saat ini", "textures/items/wooden_axe") 
+        .button("Manage Land\n§8Lahan Milikmu", "textures/ui/icon_setting")             
+        .button("Land Shop\n§8Pasar Properti", "textures/ui/trade_icon")                
+        .button(`Land Contact\n§8Pesan Masuk: ${unreadCount > 0 ? "§c" + unreadCount : "§70"}`, "textures/ui/message"); 
 
     player.playSound("random.pop");
 
@@ -135,7 +177,7 @@ export function openClaimMenu(player) {
 }
 
 // ==========================================
-// [3] PROSES PENGATURAN KOORDINAT
+// [4] PROSES PENGATURAN KOORDINAT & CLAIM
 // ==========================================
 
 function registerCoord(player, type) {
@@ -177,24 +219,34 @@ function menuConfirmClaim(player) {
     }
 
     const newVolume = getLandVolume(min, max);
-    const totalClaimed = getPlayerTotalClaimedBlocks(player.name);
-    const rankLimit = getRankClaimLimit(player);
-    const isUnlimited = rankLimit === -1;
-
-    if (!isUnlimited && (totalClaimed + newVolume > rankLimit)) {
-        player.sendMessage(`§c[Gagal] Sisa Limit Claim Block kamu tidak cukup!\n§7Terpakai: §c${totalClaimed}§8/§e${rankLimit}\n§7Butuh: §b${newVolume} Blok`);
+    const eligibility = checkClaimEligibility(player, newVolume);
+    
+    if (!eligibility.allowed) {
+        player.sendMessage(`§c[Gagal] ${eligibility.reason}`);
         return;
     }
 
-    const limitDisplay = isUnlimited ? "§dUnlimited" : `${rankLimit - totalClaimed} Blok`;
-
     const form = new ModalFormData()
-        .title("Konfirmasi Nama Lahan")
-        .label(`§aLuas Lahan: §e${newVolume} Blok\n§fSisa Limit Kamu: §b${limitDisplay}`)
+        .title("Konfirmasi Claim Lahan")
+        .label(`§aLuas Lahan: §e${newVolume} Blok\n§aBiaya Claim: §e$${toMetric(eligibility.price)}`)
         .textField("Berikan Nama Unik Lahanmu:", "Contoh: Markas Besar");
 
     form.show(player).then(res => {
         if (res.canceled) return openClaimMenu(player);
+        
+        const moneyObj = world.scoreboard.getObjective("money");
+        let currentMoney = 0;
+        try { currentMoney = moneyObj.getScore(player.scoreboardIdentity); } catch(e) {}
+
+        if (eligibility.price > 0 && currentMoney < eligibility.price) {
+            player.playSound("note.bass");
+            return player.sendMessage(`§c[Gagal] Uangmu tidak cukup! Kamu butuh $${toMetric(eligibility.price)}.`);
+        }
+
+        if (eligibility.price > 0) {
+            try { moneyObj.setScore(player.scoreboardIdentity, currentMoney - eligibility.price); } catch(e) {}
+        }
+
         const name = res.formValues[1].trim() || "Lahan Tanpa Nama";
         const landId = "land_" + Date.now();
 
@@ -205,7 +257,7 @@ function menuConfirmClaim(player) {
             trusted: {}
         };
 
-        commitLandData(lands);
+        saveAllLandData(lands);
         delete tempPositionCache[player.name];
         player.sendMessage(`§a[Claim] Selamat! Wilayah §e${name}§a kini dalam perlindunganmu. (${newVolume} Blok)`);
         player.playSound("random.levelup");
@@ -213,7 +265,7 @@ function menuConfirmClaim(player) {
 }
 
 // ==========================================
-// [4] MANAGE LAND & EDITING SYSTEM
+// [5] MANAGE LAND & EDITING SYSTEM
 // ==========================================
 
 function menuManageList(player) {
@@ -225,15 +277,12 @@ function menuManageList(player) {
         form.body("Kamu belum memiliki lahan terdaftar.");
         form.button("Kembali");
     } else {
-        const totalClaimed = getPlayerTotalClaimedBlocks(player.name);
-        const rankLimit = getRankClaimLimit(player);
-        const limitDisplay = rankLimit === -1 ? "§dUnlimited" : `§c${rankLimit}`;
-        
-        form.body(`§eStatus Claim Block Kamu:\n§fTerpakai: §a${totalClaimed} §f/ ${limitDisplay}`);
-        
+        const config = getConfig();
+        const modeStatus = config?.land?.mode === "block" ? "Mode Block Terbatas" : "Mode Area Terbatas";
+        form.body(`§eStatus Claim: §f${modeStatus}\nPilih lahan yang ingin kamu kelola:`);
         myLands.forEach(l => {
             const saleText = l.isForSale ? "§e[DIPASARKAN]" : "§a[AKTIF]";
-            form.button(`§l${l.name}\n§r${saleText} §7- ${l.dim}`);
+            form.button(`§l${l.name}\n§r${saleText} §7- ${l.dim.replace("minecraft:", "")}`);
         });
     }
 
@@ -265,7 +314,7 @@ function handleMarketToggle(player, land) {
     if (land.isForSale) {
         let db = fetchAllLandData();
         db[land.id].isForSale = false;
-        commitLandData(db);
+        saveAllLandData(db);
         player.sendMessage("§a[Market] Lahan ditarik dari penjualan.");
         menuManageList(player);
     } else {
@@ -280,25 +329,23 @@ function handleMarketToggle(player, land) {
             let db = fetchAllLandData();
             db[land.id].isForSale = true;
             db[land.id].price = price;
-            commitLandData(db);
-            player.sendMessage(`§a[Market] Lahan §e${land.name}§a dipajang di toko seharga $${price}`);
+            saveAllLandData(db);
+            player.sendMessage(`§a[Market] Lahan §e${land.name}§a dipajang di toko seharga $${toMetric(price)}`);
         });
     }
 }
 
 function menuEditLandPerms(player, land) {
     const g = land.generalPerms;
-    
-    // UPDATE FIX: Menggunakan format opsi `{ defaultValue: true/false }` sesuai standar API Bedrock versi terbaru
     const form = new ModalFormData()
         .title("Edit Lahan")
         .textField("Nama Lahan:", "Nama...", { defaultValue: land.name })
-        .toggle("Public Boleh Masuk?", { defaultValue: !!g.publicEnter })
+        .toggle("Public Boleh Masuk?\n§8(Matikan agar player luar terpental)", { defaultValue: !!g.publicEnter })
         .toggle("Public Boleh Interact?", { defaultValue: !!g.publicInteract })
         .toggle("Anti Ledakan (TNT/Creeper)", { defaultValue: !!g.explosions })
         .toggle("Anti Monster Spawn", { defaultValue: !!g.monsters })
         .toggle("Izin PvP di Area", { defaultValue: !!g.pvp })
-        .toggle("Trust Member Clan?", { defaultValue: !!g.trustClan });
+        .toggle("Trust Semua Member Clanmu?", { defaultValue: !!g.trustClan });
 
     form.show(player).then(res => {
         if (res.canceled) return;
@@ -313,7 +360,7 @@ function menuEditLandPerms(player, land) {
         target.generalPerms.pvp = res.formValues[5];
         target.generalPerms.trustClan = res.formValues[6];
 
-        commitLandData(db);
+        saveAllLandData(db);
         player.sendMessage("§a[Claim] Berhasil memperbarui pengaturan lahan.");
     });
 }
@@ -329,7 +376,7 @@ function handleLandDeletion(player, land) {
         if (res.selection === 0) {
             let db = fetchAllLandData();
             delete db[land.id];
-            commitLandData(db);
+            saveAllLandData(db);
             player.sendMessage("§aLahan telah dihapus.");
             menuManageList(player);
         }
@@ -337,7 +384,7 @@ function handleLandDeletion(player, land) {
 }
 
 // ==========================================
-// [5] TRUST SYSTEM (PER-PLAYER ACCESS)
+// [6] TRUST SYSTEM (PER-PLAYER ACCESS)
 // ==========================================
 
 function menuTrustHub(player, land) {
@@ -354,26 +401,22 @@ function menuTrustHub(player, land) {
             const names = players.map(p => p.name);
             if (names.length === 0) return player.sendMessage("§cTidak ada player online.");
 
-            // UPDATE FIX: Penulisan standar opsi
             const f = new ModalFormData()
                 .title("Beri Izin Trust")
                 .dropdown("Pilih Player Online:", names)
                 .toggle("Izin: Letakkan Block", { defaultValue: false })
                 .toggle("Izin: Hancurkan Block", { defaultValue: false })
                 .toggle("Izin: Hit Entity/PVP", { defaultValue: false })
-                .toggle("Izin: Bisa Terbang", { defaultValue: false })
-                .toggle("Izin: Buka Chest/Pintu", { defaultValue: true })
-                .toggle("Izin: Gunakan TPA", { defaultValue: true });
+                .toggle("Izin: Buka Chest/Pintu", { defaultValue: true });
 
             f.show(player).then(r => {
                 if (r.canceled) return;
                 const target = names[r.formValues[0]];
                 let db = fetchAllLandData();
                 db[land.id].trusted[target] = {
-                    place: r.formValues[1], break: r.formValues[2], hit: r.formValues[3],
-                    fly: r.formValues[4], interact: r.formValues[5], tpa: r.formValues[6]
+                    place: r.formValues[1], break: r.formValues[2], hit: r.formValues[3], interact: r.formValues[4]
                 };
-                commitLandData(db);
+                saveAllLandData(db);
                 player.sendMessage(`§a[Trust] Izin diberikan kepada §e${target}§a.`);
             });
         }
@@ -388,7 +431,6 @@ function menuTrustHub(player, land) {
                 const target = trustedNames[r.selection];
                 const data = land.trusted[target];
                 
-                // UPDATE FIX: Penulisan standar opsi
                 const m = new ModalFormData().title("Edit: " + target)
                     .toggle("Bisa Naro", { defaultValue: !!data.place })
                     .toggle("Bisa Ancurin", { defaultValue: !!data.break })
@@ -402,7 +444,7 @@ function menuTrustHub(player, land) {
                         db[land.id].trusted[target].place = resFinal.formValues[0];
                         db[land.id].trusted[target].break = resFinal.formValues[1];
                     }
-                    commitLandData(db);
+                    saveAllLandData(db);
                 });
             });
         }
@@ -410,7 +452,7 @@ function menuTrustHub(player, land) {
 }
 
 // ==========================================
-// [6] LAND SHOP & PRIVATE MESSAGES (PAPERDOLL UI)
+// [7] LAND SHOP & PRIVATE MESSAGES
 // ==========================================
 
 function menuShopList(player) {
@@ -448,29 +490,30 @@ function menuShopList(player) {
 
 function handlePurchase(player, land) {
     const newVolume = getLandVolume(land.min, land.max);
-    const totalClaimed = getPlayerTotalClaimedBlocks(player.name);
-    const rankLimit = getRankClaimLimit(player);
-    const isUnlimited = rankLimit === -1;
+    const eligibility = checkClaimEligibility(player, newVolume);
 
-    if (!isUnlimited && (totalClaimed + newVolume > rankLimit)) {
-        return player.sendMessage(`§c[Gagal] Sisa Limit Claim Block kamu tidak cukup untuk menampung lahan ini!\n§7Luas lahan: §b${newVolume} Blok\n§7Sisa Limitmu: §c${rankLimit - totalClaimed} Blok`);
+    if (!eligibility.allowed) {
+        return player.sendMessage(`§c[Gagal] ${eligibility.reason}`);
     }
 
     const moneyScore = world.scoreboard.getObjective("money");
     if (!moneyScore) return player.sendMessage("§cScoreboard money tidak ditemukan.");
-    const bal = moneyScore.getScore(player) || 0;
+    const bal = moneyScore.getScore(player.scoreboardIdentity) || 0;
+    
     if (bal < land.price) return player.sendMessage("§cUang tidak cukup!");
 
-    player.runCommandAsync(`scoreboard players remove @s money ${land.price}`);
-    player.runCommandAsync(`scoreboard players add "${land.owner}" money ${land.price}`);
+    try {
+        moneyScore.setScore(player.scoreboardIdentity, bal - land.price);
+        player.runCommandAsync(`scoreboard players add "${land.owner}" money ${land.price}`);
+    } catch(e) {}
 
     let db = fetchAllLandData();
     db[land.id].owner = player.name;
     db[land.id].isForSale = false;
     db[land.id].trusted = {};
-    commitLandData(db);
+    saveAllLandData(db);
 
-    player.teleport(land.min, { dimension: world.getDimension(land.dim) });
+    player.teleport({ x: land.min.x, y: 319, z: land.min.z }, { dimension: world.getDimension(land.dim) });
     player.sendMessage("§a[Market] Lahan berhasil dibeli!");
 }
 
@@ -487,13 +530,9 @@ function openChatInterface(player, land) {
     if (chatHistory.length > 8) chatHistory = chatHistory.slice(chatHistory.length - 8);
     const chatsText = chatHistory.map(c => `§b${c.sender}: §f${c.text}`).join("\n");
 
-    const totalClaimed = getPlayerTotalClaimedBlocks(player.name);
-    const rankLimit = getRankClaimLimit(player);
-    const limitDisplay = rankLimit === -1 ? "§dUnlimited" : `§c${rankLimit}`;
-
     const form = new ModalFormData()
         .title("§l§eKIRIM PESAN") 
-        .label(`§e[Menghubungi: §a${land.owner}§e] §7|| §e[Lahan: §d${land.name}§e]\n§fClaimblock Kamu: §b${totalClaimed}§8/ ${limitDisplay}\n\n§eRiwayat Chat:\n§7${chatsText || "Belum ada pesan"}`)
+        .label(`§e[Menghubungi: §a${land.owner}§e]\n§eRiwayat Chat:\n§7${chatsText || "Belum ada pesan"}`)
         .textField("", "Ketik pesan...");
 
     form.show(player).then(res => {
@@ -520,7 +559,7 @@ function menuInboxCenter(player) {
     const form = new ActionFormData().title("§lINBOX MESSAGES");
 
     if (myInboxes.length === 0) {
-        form.body("Belum ada calon pembeli yang mengirim pesan.");
+        form.body("Belum ada pesan yang masuk.");
         form.button("Kembali");
     } else {
         myInboxes.forEach(k => form.button(`§l${db[k].buyer}\n§rLand: ${db[k].landName} §c[${db[k].unread}]`));
@@ -542,13 +581,9 @@ function openReplyInterface(player, key) {
     if (chatHistory.length > 8) chatHistory = chatHistory.slice(chatHistory.length - 8);
     const logs = chatHistory.map(c => `§b${c.sender}: §f${c.text}`).join("\n");
 
-    const totalClaimed = getPlayerTotalClaimedBlocks(player.name);
-    const rankLimit = getRankClaimLimit(player);
-    const limitDisplay = rankLimit === -1 ? "§dUnlimited" : `§c${rankLimit}`;
-
     const f = new ModalFormData()
         .title("§l§eBALAS PESAN")
-        .label(`§e[Membalas: §a${cur[key].buyer}§e] §7|| §e[Lahan: §d${cur[key].landName}§e]\n§fClaimblock Kamu: §b${totalClaimed}§8/ ${limitDisplay}\n\n§eRiwayat:\n§7${logs || "Belum ada pesan"}`)
+        .label(`§e[Membalas: §a${cur[key].buyer}§e]\n§eRiwayat:\n§7${logs || "Belum ada pesan"}`)
         .textField("", "Ketik balasan...");
 
     f.show(player).then(r => {
@@ -568,15 +603,16 @@ function openReplyInterface(player, key) {
 }
 
 // ==========================================
-// [7] SATPAM PROTEKSI (RADAR & EVENTS)
+// [8] SATPAM PROTEKSI (RADAR & EVENTS)
 // ==========================================
 
 function checkInside(loc, land) {
     if (!loc || !land) return false;
-    return loc.x >= land.min.x && loc.x <= land.max.x && loc.y >= land.min.y && loc.y <= land.max.y && loc.z >= land.min.z && loc.z <= land.max.z;
+    return loc.x >= land.min.x && loc.x <= land.max.x && loc.z >= land.min.z && loc.z <= land.max.z;
 }
 
 function checkAccess(p, l, action) {
+    if (p.hasTag("admin") || p.isOp()) return true; // ADMIN BYPASS
     if (p.name === l.owner) return true;
     if (l.trusted[p.name] && l.trusted[p.name][action]) return true;
     if (l.generalPerms.trustClan) {
@@ -586,18 +622,35 @@ function checkAccess(p, l, action) {
     return false;
 }
 
-// 1. RADAR BOUNCE & PROTECT
+// 1. RADAR BOUNCE & PROTECT (Dengan Admin Bypass & Gaya Bouncer)
 system.runInterval(() => {
     const db = fetchAllLandData();
     for (const p of world.getAllPlayers()) {
         let inside = false;
+        const isAdmin = p.hasTag("admin") || p.isOp();
+
         for (const id in db) {
             const l = db[id];
             if (p.dimension.id === l.dim && checkInside(p.location, l)) {
                 inside = true;
-                if (!l.generalPerms.publicEnter && p.name !== l.owner && !l.trusted[p.name]) {
-                    if (playerBacktrackLocation[p.name]) p.teleport(playerBacktrackLocation[p.name]);
-                    p.onScreenDisplay.setActionBar("§c[!] Dilarang Masuk");
+                if (!l.generalPerms.publicEnter && p.name !== l.owner && !l.trusted[p.name] && !isAdmin) {
+                    
+                    p.onScreenDisplay.setActionBar(`§cLand ${l.owner} tidak mengizinkan masuk`);
+                    
+                    const cX = (l.min.x + l.max.x) / 2;
+                    const cZ = (l.min.z + l.max.z) / 2;
+                    const dirX = p.location.x - cX;
+                    const dirZ = p.location.z - cZ;
+                    const dist = Math.sqrt(dirX * dirX + dirZ * dirZ) || 1;
+                    
+                    if (playerBacktrackLocation[p.name]) {
+                        p.teleport(playerBacktrackLocation[p.name]);
+                    }
+
+                    try {
+                        p.applyKnockback(dirX / dist, dirZ / dist, 2.5, 0.4);
+                        p.playSound("hit.slime", { volume: 1.0, pitch: 1.0 });
+                    } catch(e) {}
                 }
                 break;
             }
