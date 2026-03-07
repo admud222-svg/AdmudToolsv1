@@ -1,0 +1,29 @@
+{
+  "format_version": 2,
+  "header": {
+    "name": "§aAdmud[Rp]",
+    "description": "Credit qwo&Library StarlibV2",
+    "uuid": "db5cb99d-f88c-49cf-8039-2203cc9a7c7c",
+    "version": [
+      1,
+      0,
+      0
+    ],
+    "min_engine_version": [
+      1,
+      21,
+      70
+    ]
+  },
+  "modules": [
+    {
+      "type": "resources",
+      "uuid": "6f835357-7a08-48a5-8059-a1cc7afd5593",
+      "version": [
+        1,
+        0,
+        0
+      ]
+    }
+  ]
+}

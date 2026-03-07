@@ -1,0 +1,30 @@
+{
+  "format_version": "1.10.0",
+  "minecraft:client_entity": {
+    "description": {
+      "identifier": "melonbp_brp:baby_blueberrinnioctopus",
+      "materials": {
+        "default": "entity_alphablend"
+      },
+      "textures": {
+        "default": "textures/melonbp/brp/entity/baby/blueberrinnioctopus"
+      },
+      "geometry": {
+        "default": "geometry.melonbp_brp.baby_blueberrinnioctopus"
+      },
+      "animations": {
+        "idle": "animation.melonbp_brp.blueberrinnioctopus.idle",
+        "walk": "animation.melonbp_brp.blueberrinnioctopus.baby.walk",
+        "look_at_target": "animation.common.look_at_target",
+        "controller.move": "controller.animation.melonbp_brp.generic.move"
+      },
+      "scripts": {
+        "animate": ["look_at_target", "controller.move"]
+      },
+      "render_controllers": ["controller.render.default"],
+      "spawn_egg": {
+        "texture": "melonbp_brp.egg_baby_blueberrinnioctopus"
+      }
+    }
+  }
+}

@@ -1,0 +1,8 @@
+{
+	"format_version": "1.16.100",
+	"minecraft:texture_set": {
+		"color": "orangutiniananasini",
+		"metalness_emissive_roughness": "orangutiniananasini_mer",
+		"heightmap": "orangutiniananasini_height"
+	}
+}

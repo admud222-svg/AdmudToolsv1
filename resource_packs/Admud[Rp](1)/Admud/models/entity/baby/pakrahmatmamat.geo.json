@@ -1,0 +1,45 @@
+{
+  "format_version": "1.12.0",
+  "minecraft:geometry": [
+    {
+      "description": {
+        "identifier": "geometry.melonbp_brp.baby_pakrahmatmamat",
+        "texture_width": 64,
+        "texture_height": 64,
+        "visible_bounds_width": 2,
+        "visible_bounds_height": 3.5,
+        "visible_bounds_offset": [0, 1.25, 0]
+      },
+      "bones": [
+        {
+          "name": "bone",
+          "pivot": [0, 13, 0],
+          "cubes": [
+            { "origin": [-2, 6, -2], "size": [4, 3, 4], "uv": [32, 21] },
+            { "origin": [-3, 9, -3], "size": [6, 5, 6], "uv": [32, 0] },
+            { "origin": [-4, 13, -4], "size": [8, 18, 8], "uv": [0, 0] },
+            { "origin": [-4, 24, -4], "size": [8, 3, 8], "inflate": 0.25, "uv": [0, 26] }
+          ]
+        },
+        {
+          "name": "leg_r",
+          "parent": "bone",
+          "pivot": [-2.5, 5, 0],
+          "cubes": [
+            { "origin": [-4.5, 3, -2], "size": [4, 2, 4], "uv": [32, 28] },
+            { "origin": [-5, 0, -5], "size": [5, 3, 7], "uv": [32, 11] }
+          ]
+        },
+        {
+          "name": "leg_l",
+          "parent": "bone",
+          "pivot": [2.5, 5, 0],
+          "cubes": [
+            { "origin": [0.5, 3, -2], "size": [4, 2, 4], "uv": [32, 28], "mirror": true },
+            { "origin": [0, 0, -5], "size": [5, 3, 7], "uv": [32, 11], "mirror": true }
+          ]
+        }
+      ]
+    }
+  ]
+}

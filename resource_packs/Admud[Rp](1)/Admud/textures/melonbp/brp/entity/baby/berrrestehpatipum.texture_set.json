@@ -1,0 +1,8 @@
+{
+	"format_version": "1.16.100",
+	"minecraft:texture_set": {
+		"color": "berrrestehpatipum",
+		"metalness_emissive_roughness": "berrrestehpatipum_mer",
+		"heightmap": "berrrestehpatipum_height"
+	}
+}

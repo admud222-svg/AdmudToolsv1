@@ -1,0 +1,31 @@
+{
+  "format_version": "1.10.0",
+  "minecraft:client_entity": {
+    "description": {
+      "identifier": "melonbp_brp:baby_trenostruzzoturbo3000",
+      "materials": {
+        "default": "entity_alphatest"
+      },
+      "textures": {
+        "default": "textures/melonbp/brp/entity/baby/trenostruzzoturbo3000"
+      },
+      "geometry": {
+        "default": "geometry.melonbp_brp.baby_trenostruzzoturbo3000"
+      },
+      "animations": {
+        "idle": "animation.melonbp_brp.trenostruzzoturbo3000.idle",
+        "walk": "animation.melonbp_brp.trenostruzzoturbo3000.baby.walk",
+        "sit": "animation.melonbp_brp.trenostruzzoturbo3000.baby.sit",
+        "look_at_target": "animation.common.look_at_target",
+        "controller.move": "controller.animation.melonbp_brp.generic.move"
+      },
+      "scripts": {
+        "animate": ["look_at_target", "controller.move", { "sit": "query.is_riding" }]
+      },
+      "render_controllers": ["controller.render.default"],
+      "spawn_egg": {
+        "texture": "melonbp_brp.egg_baby_trenostruzzoturbo3000"
+      }
+    }
+  }
+}

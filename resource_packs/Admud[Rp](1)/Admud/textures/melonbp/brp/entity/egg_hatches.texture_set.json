@@ -1,0 +1,8 @@
+{
+	"format_version": "1.16.100",
+	"minecraft:texture_set": {
+		"color": "egg_hatches",
+		"metalness_emissive_roughness": "egg_hatches_mer",
+		"heightmap": "egg_hatches_height"
+	}
+}

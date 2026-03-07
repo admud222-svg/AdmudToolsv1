@@ -1,0 +1,8 @@
+{
+  "format_version": "1.16.100",
+  "minecraft:texture_set": {
+    "color": "svininotnt",
+    "metalness_emissive_roughness": "svininotnt_mer",
+    "heightmap": "svininotnt_height"
+  }
+}

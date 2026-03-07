@@ -1,0 +1,29 @@
+{
+    "format_version": 2,
+    "header": {
+        "name": "Admud Rank System",
+        "description": "Advanced Rank, Modular NPC, Scoreboard Titles & UI for MineKings",
+        "uuid": "e8a93026-6218-472e-855f-861614917719",
+        "version": [1, 0, 1],
+        "min_engine_version": [1, 21, 60]
+    },
+    "modules": [
+        {
+            "type": "script",
+            "language": "javascript",
+            "uuid": "206584c2-9ee6-427c-9403-455642672304",
+            "entry": "scripts/main.js",
+            "version": [1, 0, 1]
+        }
+    ],
+    "dependencies": [
+        {
+            "module_name": "@minecraft/server",
+            "version": "2.6.0-beta"
+        },
+        {
+            "module_name": "@minecraft/server-ui",
+            "version": "2.1.0-beta"
+        }
+    ]
+}

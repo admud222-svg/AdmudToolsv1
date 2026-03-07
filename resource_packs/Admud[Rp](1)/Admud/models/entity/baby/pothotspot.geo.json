@@ -1,0 +1,95 @@
+{
+  "format_version": "1.12.0",
+  "minecraft:geometry": [
+    {
+      "description": {
+        "identifier": "geometry.melonbp_brp.baby_pothotspot",
+        "texture_width": 64,
+        "texture_height": 64,
+        "visible_bounds_width": 2,
+        "visible_bounds_height": 2.5,
+        "visible_bounds_offset": [0, 0.75, 0]
+      },
+      "bones": [
+        {
+          "name": "Body",
+          "pivot": [0, 7, 0],
+          "cubes": [
+            { "origin": [-5.5, 7, 0], "size": [11, 16, 1], "uv": [0, 0] },
+            { "origin": [-4.5, 12, -3], "size": [9, 8, 3], "uv": [0, 17] },
+            { "origin": [-3.5, 8, -3], "size": [7, 4, 3], "uv": [24, 0] }
+          ]
+        },
+        {
+          "name": "leg_r",
+          "parent": "Body",
+          "pivot": [-3.5, 7, 0],
+          "cubes": [
+            { "origin": [-4.5, 2, 0], "size": [2, 5, 0], "uv": [8, 28] },
+            { "origin": [-6, 0, -4], "size": [5, 2, 5], "uv": [24, 7] }
+          ]
+        },
+        {
+          "name": "leg_r2",
+          "parent": "Body",
+          "pivot": [3.5, 7, 0],
+          "cubes": [
+            { "origin": [2.5, 2, 0], "size": [2, 5, 0], "uv": [8, 28] },
+            { "origin": [1, 0, -4], "size": [5, 2, 5], "uv": [24, 7], "mirror": true }
+          ]
+        },
+        {
+          "name": "arms",
+          "parent": "Body",
+          "pivot": [0, 10, 0],
+          "cubes": [
+            {
+              "origin": [5.5, 9.5, -8],
+              "size": [0, 1, 8],
+              "pivot": [5.5, 10, 0],
+              "rotation": [15, 15, 0],
+              "uv": [24, 14]
+            },
+            {
+              "origin": [-5.5, 9.5, -8],
+              "size": [0, 1, 8],
+              "pivot": [-5.5, 10, 0],
+              "rotation": [15, -15, 0],
+              "uv": [24, 14],
+              "mirror": true
+            },
+            {
+              "origin": [4.5, 8.5, -10],
+              "size": [2, 3, 2],
+              "pivot": [5.5, 10, 0],
+              "rotation": [15, 15, 0],
+              "uv": [0, 28]
+            },
+            {
+              "origin": [-6.5, 8.5, -10],
+              "size": [2, 3, 2],
+              "pivot": [-5.5, 10, 0],
+              "rotation": [15, -15, 0],
+              "uv": [0, 28],
+              "mirror": true
+            }
+          ]
+        },
+        {
+          "name": "bone2",
+          "parent": "arms",
+          "pivot": [0, 7, 0],
+          "cubes": [
+            {
+              "origin": [-3, 4, -9],
+              "size": [6, 9, 1],
+              "pivot": [0, 8.5, -8.5],
+              "rotation": [-7.5, 0, 0],
+              "uv": [24, 23]
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

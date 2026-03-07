@@ -1,0 +1,8 @@
+{
+  "format_version": "1.16.100",
+  "minecraft:texture_set": {
+    "color": "rhinotoasterino",
+    "metalness_emissive_roughness": "rhinotoasterino_mer",
+    "heightmap": "rhinotoasterino_height"
+  }
+}
