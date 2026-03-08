@@ -1,4 +1,4 @@
-import { world, system, EquipmentSlot } from "@minecraft/server";
+import { world, system } from "@minecraft/server";
 import { ActionFormData, ModalFormData, MessageFormData } from "@minecraft/server-ui";
 
 // ==========================================
@@ -319,20 +319,6 @@ function formatMoney(num) {
     return num.toString();
 }
 
-function formatTime(ms) {
-    if (ms <= 0) return "Sekarang";
-    const totalSeconds = Math.floor(ms / 1000);
-    const h = Math.floor(totalSeconds / 3600);
-    const m = Math.floor((totalSeconds % 3600) / 60);
-    const s = totalSeconds % 60;
-    
-    let res = [];
-    if (h > 0) res.push(`${h}j`);
-    if (m > 0) res.push(`${m}m`);
-    if (s > 0 || res.length === 0) res.push(`${s}d`);
-    return res.join(" ");
-}
-
 function getMoney(player) {
     try {
         const obj = world.scoreboard.getObjective(getCurrency());
@@ -508,7 +494,7 @@ function startAutoRestock() {
 system.runTimeout(() => { startAutoRestock(); }, 40);
 
 // ==========================================
-// PLAYER UI: SHOP MENU (SERVER UI CUSTOM)
+// PLAYER UI: SHOP MENU (NEW CUSTOM UI)
 // ==========================================
 export function openShopMenu(player) {
     const shopData = getShopData();
@@ -516,7 +502,6 @@ export function openShopMenu(player) {
     const keys = Object.keys(shopData);
     
     const form = new ActionFormData()
-        // TITLE INI "§lRANK SHOP§f§0§1" HARUS PERSIS SAMA DENGAN BINDING DI server_form.json KAMU
         .title("§lRANK SHOP§f§0§1")
         .body(`Uangmu: §a${formatMoney(getMoney(player))} ${currency}§r\n\n§ePilih Kategori untuk berbelanja:`);
 
@@ -530,104 +515,135 @@ export function openShopMenu(player) {
     form.show(player).then(res => {
         if (res.canceled) return;
         if (res.selection === keys.length) return system.run(() => sellAllInventory(player));
-        if (res.selection === keys.length + 1) return; // Tutup
-        openCategoryMenu(player, keys[res.selection]);
+        if (res.selection === keys.length + 1) return; 
+        
+        openCategoryMenu(player, keys[res.selection], null, 0); 
     });
 }
 
-function openCategoryMenu(player, categoryId) {
+function openCategoryMenu(player, categoryId, selectedIndex = null, styleIndex = 0) {
     const shopData = getShopData();
     const cat = shopData[categoryId];
+    const items = cat.items;
     const currency = getCurrency();
     const useStock = isStockMode();
-    const globalInterval = getGlobalRestockInterval();
 
-    // MEMBUAT BODY TEKS RAPI DI ATAS TOMBOL
-    let bodyText = `Uangmu: §a${formatMoney(getMoney(player))} ${currency}§r\n\n§e--- DAFTAR BARANG ---\n`;
+    const form = new ActionFormData();
     
-    for (const itm of cat.items) {
-        let stockText = "§dStok: ∞";
+    form.title(`§l${cat.name}§f§s§h§o§p`);
+
+    if (selectedIndex !== null && selectedIndex < items.length) {
+        const itm = items[selectedIndex];
+        let stockText = "§d∞";
         if (useStock) {
             const currentStock = getStock(itm.id, itm.stockMax);
-            if (currentStock >= itm.stockMax) {
-                stockText = `§2Stok: ${currentStock} §8(Penuh)`;
-            } else {
-                const lastRestock = world.getDynamicProperty(`lastRestock_${itm.id}`) || Date.now();
-                const rInterval = itm.restockIntervalMinutes || globalInterval;
-                const intervalMs = rInterval * 60 * 1000;
-                const timeLeft = Math.max(0, (lastRestock + intervalMs) - Date.now());
-                const timeStr = formatTime(timeLeft);
-
-                if (currentStock > 0) {
-                    stockText = `§2Stok: ${currentStock} §8(+ dlm ${timeStr})`;
-                } else {
-                    stockText = `§cHABIS §8(Restock dlm ${timeStr})`;
-                }
-            }
+            stockText = currentStock >= itm.stockMax ? `§2${currentStock} pcs` : `§e${currentStock} pcs`;
         }
-        // Menambahkan rincian barang ke dalam body text agar tidak terpotong di tombol
-        bodyText += `§f${itm.name} §8- §aB: ${formatMoney(itm.buy)} §c| J: ${formatMoney(itm.sell)} §8| ${stockText}\n`;
+        form.body(`§l§b${itm.name}§r\n\n§fHarga Beli: §a${formatMoney(itm.buy)} ${currency}§r\n§fHarga Jual: §c${formatMoney(itm.sell)} ${currency}§r\n§fSisa Stok: ${stockText}§r`);
+    } else {
+        form.body(`Uangmu: §a${formatMoney(getMoney(player))} ${currency}§r\n\n§eSilakan pilih item di sebelah kiri untuk melihat detail.§r`);
     }
 
-    const form = new ActionFormData()
-        .title("§lRANK SHOP§f§0§1")
-        .body(bodyText);
+    items.forEach((itm, index) => {
+        let selected = '';
+        if (index === selectedIndex) {
+            selected = '§s§e§l§e§c§t§e§d§r§a'; 
+        }
+        form.button(`${selected}${itm.name}\n§e$${itm.buy}§${styleIndex}§i§t§e§m§s`, itm.icon);
+    });
 
-    // Tombol sekarang hanya berisi Nama Barang saja agar muat di kotak kecil
-    for (const itm of cat.items) {
-        form.button(`§l${itm.name}`, itm.icon);
+    form.button('Kembali§b§a§c§k', 'textures/ui/cancel');
+    form.button('Cari§s§e§a§r§c§h', 'textures/ui/magnifyingGlass');
+    form.button('Profilku§m§y§p§a§g§e', 'textures/ui/friend1_black_outline');
+
+    if (selectedIndex !== null && selectedIndex < items.length) {
+        form.button('§l§aBELI BARANG§i§n§f§o', 'textures/ui/color_plus');
+        form.button('§l§cJUAL BARANG§i§n§f§o', 'textures/ui/minus');
+    } else {
+        form.button('Pilih Item Dulu...§i§n§f§o', 'textures/ui/lock');
     }
-    form.button("§8[ Kembali ]", "textures/ui/undo");
+
+    const styleLabel = ['Ubah ke Grid', 'Ubah ke List'];
+    form.button(`${styleLabel[styleIndex]}§s§t§y§l§e`, 'textures/ui/refresh_light');
 
     form.show(player).then(res => {
         if (res.canceled) return;
-        if (res.selection === cat.items.length) return openShopMenu(player);
-        openTransaction(player, categoryId, res.selection);
+        
+        if (res.selection < items.length) {
+            return openCategoryMenu(player, categoryId, res.selection, styleIndex);
+        }
+
+        const staticIdx = res.selection - items.length;
+
+        if (staticIdx === 0) return openShopMenu(player);
+        if (staticIdx === 1) { 
+            player.sendMessage("§eFitur pencarian akan segera datang!");
+            return openCategoryMenu(player, categoryId, selectedIndex, styleIndex);
+        }
+        if (staticIdx === 2) { 
+            return openPlayerProfile(player, categoryId, selectedIndex, styleIndex); 
+        }
+
+        if (selectedIndex !== null) {
+            if (staticIdx === 3) return openTransactionAction(player, categoryId, selectedIndex, 0); 
+            if (staticIdx === 4) return openTransactionAction(player, categoryId, selectedIndex, 1); 
+            if (staticIdx === 5) return openCategoryMenu(player, categoryId, selectedIndex, Math.abs(styleIndex - 1)); 
+        } else {
+            if (staticIdx === 3) return openCategoryMenu(player, categoryId, selectedIndex, styleIndex); 
+            if (staticIdx === 4) return openCategoryMenu(player, categoryId, selectedIndex, Math.abs(styleIndex - 1)); 
+        }
     });
 }
 
-function openTransaction(player, catId, idx) {
+function openPlayerProfile(player, categoryId, selectedIndex, styleIndex) {
+    const currency = getCurrency();
+    const money = getMoney(player);
+    const inv = player.getComponent("inventory").container;
+    
+    let totalItems = 0;
+    for(let i=0; i<inv.size; i++) {
+        if(inv.getItem(i)) totalItems++;
+    }
+
+    new MessageFormData()
+        .title("§l§bPROFILKU")
+        .body(`§fNama: §e${player.name}\n§fUang (${currency}): §a${formatMoney(money)}\n§fSlot Tas Terisi: §c${totalItems}/${inv.size} Slot`)
+        .button1("Tutup Profil")
+        .button2("Kembali ke Toko")
+        .show(player).then(res => {
+            if (res.selection === 1) openCategoryMenu(player, categoryId, selectedIndex, styleIndex);
+        });
+}
+
+function openTransactionAction(player, catId, idx, actionType) {
     const shopData = getShopData();
     const item = shopData[catId].items[idx];
     const playerMoney = getMoney(player);
     const inInv = getPlayerItemCount(player, item.id);
-    const useStock = isStockMode();
     const currency = getCurrency();
-    const globalInterval = getGlobalRestockInterval();
     
-    let stockDisplay = "§d∞ (Unlimited)";
-    if (useStock) {
-        const currentStock = getStock(item.id, item.stockMax);
-        
-        if (currentStock >= item.stockMax) {
-            stockDisplay = `§e${currentStock} pcs §8(Penuh)`;
-        } else {
-            const lastRestock = world.getDynamicProperty(`lastRestock_${item.id}`) || Date.now();
-            const rInterval = item.restockIntervalMinutes || globalInterval;
-            const intervalMs = rInterval * 60 * 1000;
-            const timeLeft = Math.max(0, (lastRestock + intervalMs) - Date.now());
-            const timeStr = formatTime(timeLeft);
-            stockDisplay = `§e${currentStock} pcs §7(Restock dlm ${timeStr})`;
-        }
-    }
+    const isBuy = actionType === 0;
 
     const form = new ModalFormData()
-        .title(`TRANSAKSI: ${item.name}`)
-        .dropdown(`§7--- INFO BARANG ---\n§fItem: §b${item.name}\n§fHarga Beli: §a${formatMoney(item.buy)} ${currency}\n§fHarga Jual: §c${formatMoney(item.sell)} ${currency}\n§fStok Server: ${stockDisplay}\n\n§7--- STATUS KAMU ---\n§fUang: §a${formatMoney(playerMoney)} ${currency}\n§fPunya: §b${inInv} pcs\n\nPilih Aksi:`, ["§l§aBELI (Buy)", "§l§cJUAL (Sell)"])
-        .textField("Masukkan Jumlah:", "Contoh: 1, 16, 64");
+        .title(isBuy ? `BELI: ${item.name}` : `JUAL: ${item.name}`)
+        .textField(
+            `Uangmu: ${formatMoney(playerMoney)} ${currency}\nDi Tas: ${inInv} pcs\nHarga ${isBuy ? 'Beli' : 'Jual'} per item: ${formatMoney(isBuy ? item.buy : item.sell)}\n\nMasukkan Jumlah:`, 
+            "Contoh: 1, 16, 64", 
+            { defaultValue: "1" } 
+        );
 
     form.show(player).then(res => {
-        if (res.canceled) return openCategoryMenu(player, catId);
-        const action = res.formValues[0];
-        const amount = parseInt(res.formValues[1]);
+        if (res.canceled) return openCategoryMenu(player, catId, idx);
+        
+        const amount = parseInt(res.formValues[0]);
 
         if (isNaN(amount) || amount <= 0) {
             player.sendMessage("§c[Shop] Jumlah tidak valid!");
-            return openCategoryMenu(player, catId);
+            return openCategoryMenu(player, catId, idx);
         }
 
         system.run(() => {
-            if (action === 0) { // BELI
+            if (isBuy) { 
                 const total = item.buy * amount;
                 if (playerMoney < total) return player.sendMessage(`§c[Shop] Uang (${currency}) tidak cukup!`);
                 if (!reduceStock(item.id, amount, item.stockMax)) {
@@ -636,7 +652,7 @@ function openTransaction(player, catId, idx) {
                 removeMoney(player, total);
                 player.runCommand(`give @s ${item.id} ${amount}`);
                 player.sendMessage(`§a[Shop] Sukses beli ${amount}x ${item.name} seharga ${formatMoney(total)} ${currency}!`);
-            } else { // JUAL
+            } else { 
                 if (item.sell <= 0) return player.sendMessage("§c[Shop] Barang ini tidak bisa dijual!");
                 if (inInv < amount) return player.sendMessage("§c[Shop] Barang di tas tidak cukup!");
                 

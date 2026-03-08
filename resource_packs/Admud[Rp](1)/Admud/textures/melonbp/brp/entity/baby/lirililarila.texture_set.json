@@ -1,0 +1,8 @@
+{
+	"format_version": "1.16.100",
+	"minecraft:texture_set": {
+		"color": "lirililarila",
+		"metalness_emissive_roughness": "lirililarila_mer",
+		"heightmap": "lirililarila_height"
+	}
+}

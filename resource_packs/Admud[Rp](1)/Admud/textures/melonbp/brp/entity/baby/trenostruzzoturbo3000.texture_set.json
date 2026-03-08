@@ -1,0 +1,8 @@
+{
+	"format_version": "1.16.100",
+	"minecraft:texture_set": {
+		"color": "trenostruzzoturbo3000",
+		"metalness_emissive_roughness": "trenostruzzoturbo3000_mer",
+		"heightmap": "trenostruzzoturbo3000_height"
+	}
+}

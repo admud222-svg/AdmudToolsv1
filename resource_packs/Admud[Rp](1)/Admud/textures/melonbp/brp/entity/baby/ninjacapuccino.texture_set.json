@@ -1,0 +1,8 @@
+{
+  "format_version": "1.16.100",
+  "minecraft:texture_set": {
+    "color": "ninjacapuccino",
+    "metalness_emissive_roughness": "ninjacapuccino_mer",
+    "heightmap": "ninjacapuccino_height"
+  }
+}

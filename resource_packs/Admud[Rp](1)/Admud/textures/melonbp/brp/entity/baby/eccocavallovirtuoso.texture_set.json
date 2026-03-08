@@ -1,0 +1,8 @@
+{
+	"format_version": "1.16.100",
+	"minecraft:texture_set": {
+		"color": "eccocavallovirtuoso",
+		"metalness_emissive_roughness": "eccocavallovirtuoso_mer",
+		"heightmap": "eccocavallovirtuoso_height"
+	}
+}

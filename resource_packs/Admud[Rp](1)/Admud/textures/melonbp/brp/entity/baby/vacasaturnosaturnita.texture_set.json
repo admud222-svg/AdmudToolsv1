@@ -1,0 +1,8 @@
+{
+	"format_version": "1.16.100",
+	"minecraft:texture_set": {
+		"color": "vacasaturnosaturnita",
+		"metalness_emissive_roughness": "vacasaturnosaturnita_mer",
+		"heightmap": "vacasaturnosaturnita_height"
+	}
+}
